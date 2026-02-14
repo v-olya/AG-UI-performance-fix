@@ -24,6 +24,7 @@
     "@copilotkit/react-ui": "^1.51.3",
     "@copilotkit/runtime": "^1.51.3",
     "next": "^16.0.10",
+    "playwright": "^1.58.2",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "zod": "^3.25.75"

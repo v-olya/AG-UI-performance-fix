@@ -1,0 +1,136 @@
+import { chromium, Browser, BrowserContext, Page, Route } from "playwright";
+
+export interface AIProposedFix {
+  type: "head_injection" | "css_override" | "js_replace";
+  targetFileUrl?: string; // Only required for 'js_replace'
+  content: string;
+}
+
+export interface MetricScore {
+  lcp_ms: number;
+  total_bytes_kb: number;
+}
+
+export interface ScorecardDelta {
+  before: MetricScore;
+  after: MetricScore;
+  improvements: {
+    lcp_saved_ms: number;
+    bytes_saved_kb: number;
+  };
+}
+
+// HELPER
+const measurePage = async (page: Page): Promise<MetricScore> => {
+  return await page.evaluate(async () => {
+    // Type assertion to avoid 'any'
+    const resources = performance.getEntriesByType(
+      "resource",
+    ) as PerformanceResourceTiming[];
+    const totalBytes = resources.reduce(
+      (acc, r) => acc + (r.transferSize || 0),
+      0,
+    );
+
+    const lcp = await new Promise<number>((resolve) => {
+      new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        if (entries.length > 0) {
+          resolve(entries[entries.length - 1]?.startTime || 0);
+        }
+      }).observe({ type: "largest-contentful-paint", buffered: true });
+
+      setTimeout(() => resolve(0), 3000); // TODO tie this resolution to Playwright's networkidle state
+    });
+
+    return {
+      lcp_ms: Math.round(lcp),
+      total_bytes_kb: Math.round(totalBytes / 1024),
+    };
+  });
+};
+
+// SCORECARD
+export const generateScorecard = async (
+  url: string,
+  beforeMetrics: MetricScore,
+  fixes: AIProposedFix[],
+): Promise<ScorecardDelta> => {
+  const browser: Browser = await chromium.launch();
+  const context: BrowserContext = await browser.newContext();
+  const page: Page = await context.newPage();
+
+  // 1. Apply Network Interception Fixes (Replacing JS files or injecting into HTML)
+  await page.route("**/*", async (route: Route) => {
+    const request = route.request();
+    const reqUrl = request.url();
+
+    // A. Inject HTML <head> tags (Preloads, FetchPriority)
+    if (reqUrl === url) {
+      const headFixes = fixes
+        .filter((f) => f.type === "head_injection")
+        .map((f) => f.content)
+        .join("\n");
+      const response = await route.fetch();
+      let html = await response.text();
+
+      if (headFixes) {
+        html = html.replace("</head>", `${headFixes}\n</head>`);
+      }
+      return route.fulfill({
+        response,
+        body: html,
+        headers: { ...response.headers(), "content-type": "text/html" },
+      });
+    }
+
+    // B. Replace specific JS/CSS files (e.g., AI stripped out unused code)
+    const replaceFix = fixes.find(
+      (f) =>
+        f.type === "js_replace" &&
+        f.targetFileUrl &&
+        reqUrl.includes(f.targetFileUrl),
+    );
+    if (replaceFix) {
+      // We fulfill the request with the AI's optimized code instead of fetching it from the server
+      return route.fulfill({
+        status: 200,
+        contentType: reqUrl.endsWith(".css")
+          ? "text/css"
+          : "application/javascript",
+        body: replaceFix.content,
+      });
+    }
+
+    // Otherwise, let the request go through normally
+    await route.continue();
+  });
+
+  // 2. Apply DOM Injection Fixes (New CSS Overrides)
+  const cssFixes = fixes.filter((f) => f.type === "css_override");
+  for (const fix of cssFixes) {
+    // This injects the CSS string directly into the page's stylesheet context
+    await page.addInitScript(`
+      const style = document.createElement('style');
+      style.textContent = \`${fix.content}\`;
+      document.addEventListener('DOMContentLoaded', () => document.head.appendChild(style));
+    `);
+  }
+
+  // 3. Navigate and Measure the "After" State
+  await page.goto(url, { waitUntil: "load" });
+  const afterMetrics = await measurePage(page);
+
+  await browser.close();
+
+  // 4. Return the Scorecard Delta
+  return {
+    before: beforeMetrics,
+    after: afterMetrics,
+    improvements: {
+      lcp_saved_ms: beforeMetrics.lcp_ms - afterMetrics.lcp_ms,
+      bytes_saved_kb:
+        beforeMetrics.total_bytes_kb - afterMetrics.total_bytes_kb,
+    },
+  };
+};

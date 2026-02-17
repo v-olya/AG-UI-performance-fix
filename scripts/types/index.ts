@@ -1,5 +1,11 @@
 import type { PerformanceEntry } from "perf_hooks";
 
+export type SectionType =
+  | "SCRIPT_SANDBOX"
+  | "LAYOUT_SHIFT"
+  | "PRIORITY_DOCK"
+  | "EXECUTION_SPLITTER";
+
 export interface ShiftAttribution {
   selector: string;
   score: number;
@@ -75,8 +81,5 @@ export interface ResourceTiming {
 }
 
 export function isLayoutShift(entry: PerformanceEntry): entry is LayoutShift {
-  return (
-    "hadRecentInput" in entry &&
-    "value" in entry
-  );
+  return "hadRecentInput" in entry && "value" in entry;
 }

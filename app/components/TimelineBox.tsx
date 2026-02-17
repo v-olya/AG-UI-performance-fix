@@ -1,11 +1,18 @@
 import { useDraggable } from "@dnd-kit/core";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 
+export type AssetType = "script" | "css" | "font" | "img";
 export interface AssetItem {
   id: string;
   name: string;
-  volume: number; // Represents "width" or weight
-  startTime: number; // Represents "x" position
-  type: "js" | "css" | "font";
+  volume: number; // Represents duration/width
+  startTime: number; // Represents start position
+  type: AssetType;
   moveTo?: "highest" | "background" | null;
 }
 
@@ -60,18 +67,43 @@ export function TimelineBox({ script }: { script: AssetItem }) {
   );
 
   return (
-    <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      className={" "}
-      style={{
-        left: script.startTime,
-        width: script.volume,
-        opacity: isDragging ? 0.3 : 1, // Visual cue: dimmed while dragging
-      }}
-    >
-      {script.name}
-    </div>
+    <TooltipProvider delayDuration={100}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            ref={setNodeRef}
+            {...listeners}
+            {...attributes}
+            className={`absolute ${colors?.bg} ${colors?.border} border-2 rounded-md cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all hover:scale-105 hover:z-30`}
+            style={{
+              left: `${script.startTime}px`,
+              width: `${Math.max(script.volume, 70)}px`,
+              height: `${dynamicHeight}px`,
+              top: "50%",
+              transform: `translateY(-50%)`,
+              opacity: isDragging ? 0.6 : 1,
+              zIndex: isDragging ? 100 : 20,
+            }}
+          >
+            <div
+              className={`h-full flex flex-col justify-center px-2 ${colors?.text}`}
+            >
+              <div className="font-semibold truncate">{script.name}</div>
+              <div className="text-xs opacity-70 flex justify-between">
+                <span>{script.type}</span>
+                <span>{script.volume}KB</span>
+              </div>
+            </div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          <p>
+            {script.name} ({script.volume}KB)
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
+
+export { timelineColors };

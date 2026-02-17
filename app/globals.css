@@ -1,7 +1,6 @@
 @import "tailwindcss";
 
 @plugin "tailwindcss-animate";
-@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 @config "../tailwind.config.ts";
@@ -130,12 +129,13 @@
   }
   body {
     @apply bg-background text-foreground;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
-}
-
-/* Fix: limit messages height so input stays visible */
-main > div:first-child > div:first-child {
-  height: calc(100% - 100px) !important;
+  html {
+    overflow-y: auto;
+    scroll-behavior: smooth;
+  }
 }
 
 themed-a2ui-surface {

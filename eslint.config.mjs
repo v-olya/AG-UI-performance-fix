@@ -1,22 +1,30 @@
 import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+import pluginNext from "@next/eslint-plugin-next";
+import parser from "@typescript-eslint/parser";
+import tsPlugin from "@typescript-eslint/eslint-plugin";
 import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 
 const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
   {
+    languageOptions: {
+      parser,
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    },
     plugins: {
+      "@next/next": pluginNext,
+      "@typescript-eslint": tsPlugin,
       react,
       "react-hooks": reactHooks,
     },
     rules: {
+      ...pluginNext.configs.recommended.rules,
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": "error",
-
-      // React-specific rules
       "react/jsx-uses-react": "error",
       "react/jsx-uses-vars": "error",
       "react/jsx-key": "error",
@@ -29,8 +37,6 @@ const eslintConfig = defineConfig([
         "error",
         { props: "never", children: "never" },
       ],
-
-      // React Hooks rules
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
     },

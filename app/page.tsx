@@ -59,8 +59,7 @@ function PerformanceAssistant() {
         </h1>
         <CopilotPopup
           labels={{
-            title: "Restaurant Assistant",
-            initial: "Hi! I can help you find and book restaurants",
+            placeholder: "Try London ... or Italian food",
           }}
         />
       </header>

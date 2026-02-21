@@ -24,6 +24,8 @@ coverage/
 out
 dist
 
+.vscode/
+
 # ESLint cache
 .eslintcache
 

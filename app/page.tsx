@@ -1,19 +1,26 @@
 "use client";
 
+import { Suspense, lazy, useState } from "react";
 import { CopilotPopup } from "@copilotkit/react-ui";
 import { CopilotKit, useCopilotAction } from "@copilotkit/react-core";
-import { useState, useCallback } from "react";
-import {
-  RestaurantList,
-  BookingForm,
-  Confirmation,
-  Restaurant,
-} from "./components";
+
+const DummyAnalysisComponent = lazy(() =>
+  import("./components/DummyAnalysisComponent").then((mod) => ({
+    default: mod.DummyAnalysisComponent,
+  })),
+);
 
 export const dynamic = "force-dynamic";
 
+interface AnalysisResult {
+  success: boolean;
+  url: string;
+  message: string;
+}
+
 function PerformanceAssistant() {
-  const [showPlaceholder, setShowPlaceholder] = useState(false);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useCopilotAction({
     name: "analyzePerformance",
@@ -26,28 +33,20 @@ function PerformanceAssistant() {
       },
     ],
     handler: async ({ url }) => {
-      setShowPlaceholder(true);
-      return {
+      setIsAnalyzing(true);
+
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      const analysisResult: AnalysisResult = {
         success: true,
         url,
-        message: "Performance analysis placeholder - add your components here",
+        message: "Performance analysis complete",
       };
-    },
-    render: ({ status }) => {
-      if (status === "inProgress") {
-        return <div>Analyzing performance...</div>;
-      }
-      if (showPlaceholder || result) {
-        return (
-          <div className="border rounded-lg p-4 bg-white shadow-sm">
-            <p className="text-gray-600">
-              Performance analysis ready. Add your performance components to the
-              catalog.
-            </p>
-          </div>
-        );
-      }
-      return <></>;
+
+      setResult(analysisResult);
+      setIsAnalyzing(false);
+
+      return analysisResult;
     },
   });
 
@@ -59,18 +58,32 @@ function PerformanceAssistant() {
         </h1>
         <CopilotPopup
           labels={{
-            placeholder: "Try London ... or Italian food",
+            placeholder:
+              "Hi! I can help you analyze and fix page performance issues.",
           }}
         />
       </header>
-      <CopilotChat
-        className="flex-1 w-full m-0 rounded-none border-0 border-l shadow-none"
-        labels={{
-          title: "Assistant",
-          initial:
-            "Hi! I can help you analyze and fix page performance issues. Describe the page or provide a URL to get started.",
-        }}
-      />
+
+      <div className="flex-1 p-6 overflow-auto">
+        {isAnalyzing ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Analyzing page performance...</p>
+            </div>
+          </div>
+        ) : result ? (
+          <Suspense fallback={<div>Loading component...</div>}>
+            <DummyAnalysisComponent result={result} />
+          </Suspense>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-400">
+              Ask the assistant to analyze a page URL
+            </p>
+          </div>
+        )}
+      </div>
     </main>
   );
 }

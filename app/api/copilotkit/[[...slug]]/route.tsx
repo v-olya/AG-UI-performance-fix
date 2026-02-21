@@ -18,16 +18,11 @@ const ollamaProvider = createOpenAI({
 const agent = new BuiltInAgent({
   model: ollamaProvider(ollamaModel),
   prompt: `
-You are a restaurant search assistant. Call the searchRestaurants tool when the user specifies a cuisine or location.
+You are a page performance assistant. Help users analyze and fix page performance issues.
 
 Rules:
-- Call the tool with only the parameters the user specifies. Don't add missing ones.
-- Never mention restaurants that aren't in the tool output. 
-- After calling the tool, respond with exactly: "Found [N] restaurants." where N is the actual number returned.
-- Don't describe or name the restaurants. The UI displays them.
-- If no results, suggest different search criteria.
-
-IMPORTANT: If the user doesn't specify neither cuisine, nor location, DO NOT call a tool, just ask the user for one of them.
+- Use the analyzePerformance tool to analyze page performance.
+- When the tool returns a result, ALWAYS render the UI component. Don't describe the results.
   `,
 });
 

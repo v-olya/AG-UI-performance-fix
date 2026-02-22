@@ -11,6 +11,8 @@ const PriorityDock = dynamic(
   () => import("../components/PriorityDock").then((mod) => mod.PriorityDock),
   { ssr: false },
 );
+import { Skeleton } from "../components/ui/skeleton";
+import { Card } from "../components/ui/card";
 
 interface ScriptSandboxItem {
   assetName: string;
@@ -74,9 +76,15 @@ export function useToolRenderers({
     render: ({ status, args }) => {
       if (status === "inProgress") {
         return (
-          <div className="animate-pulse p-4 text-slate-400">
-            Loading Priority Dock...
-          </div>
+          <SectionWrapper type="PRIORITY_DOCK">
+            <Card className="p-6 space-y-4">
+              <Skeleton className="h-8 w-3/4" />
+              <div className="grid grid-cols-2 gap-4">
+                <Skeleton className="h-20" />
+                <Skeleton className="h-20" />
+              </div>
+            </Card>
+          </SectionWrapper>
         );
       }
       const assets = (args as Record<string, unknown>).assets as
@@ -117,9 +125,18 @@ export function useToolRenderers({
     render: ({ status, args }) => {
       if (status === "inProgress") {
         return (
-          <div className="animate-pulse p-4 text-slate-400">
-            Loading Script Sandbox...
-          </div>
+          <SectionWrapper type="SCRIPT_SANDBOX">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="p-6 space-y-3">
+                <Skeleton className="h-6 w-1/2" />
+                <Skeleton className="h-20 w-full" />
+              </Card>
+              <Card className="p-6 space-y-3">
+                <Skeleton className="h-6 w-1/2" />
+                <Skeleton className="h-20 w-full" />
+              </Card>
+            </div>
+          </SectionWrapper>
         );
       }
       const items = ((args as Record<string, unknown>).items ??
@@ -179,9 +196,15 @@ export function useToolRenderers({
     render: ({ status, args }) => {
       if (status === "inProgress") {
         return (
-          <div className="animate-pulse p-4 text-slate-400">
-            Loading Execution Splitter...
-          </div>
+          <SectionWrapper type="EXECUTION_SPLITTER">
+            <Card className="p-6 space-y-4">
+              <Skeleton className="h-40 w-full" />
+              <div className="flex gap-2">
+                <Skeleton className="h-8 w-24" />
+                <Skeleton className="h-8 w-24" />
+              </div>
+            </Card>
+          </SectionWrapper>
         );
       }
       const typedArgs = args as Record<string, unknown>;
@@ -226,9 +249,13 @@ export function useToolRenderers({
     render: ({ status, args }) => {
       if (status === "inProgress") {
         return (
-          <div className="animate-pulse p-4 text-slate-400">
-            Loading Layout Stabilization...
-          </div>
+          <SectionWrapper type="LAYOUT_SHIFT">
+            <div className="space-y-4">
+              <Card className="p-6">
+                <Skeleton className="h-32 w-full" />
+              </Card>
+            </div>
+          </SectionWrapper>
         );
       }
       const items = ((args as Record<string, unknown>).items ??

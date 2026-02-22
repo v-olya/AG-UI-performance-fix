@@ -1,6 +1,9 @@
 import { Page } from "playwright";
 import type { CSSCoverageReport } from "./types/index.js";
 
+const MAX_CSS_ENTRIES = 5;
+const MIN_UNUSED_PERCENTAGE = 50;
+
 export const getCSSShakerData = async (
   page: Page,
 ): Promise<CSSCoverageReport[]> => {
@@ -23,11 +26,12 @@ export const getCSSShakerData = async (
         url: entry.url.split("/").pop() || "inline",
         totalBytes,
         unusedBytes,
+        unusedKb: Math.round(unusedBytes / 1024),
         unusedPercentage:
           totalBytes > 0 ? Math.round((unusedBytes / totalBytes) * 100) : 0,
-        // We send a snippet of the text so the AI can see the class names involved
-        unusedRulesSnippet: entry.text?.substring(0, 500) ?? "",
       };
     })
-    .filter((report) => report.unusedPercentage > 50); // Only report heavy offenders
+    .filter((report) => report.unusedPercentage > MIN_UNUSED_PERCENTAGE)
+    .sort((a, b) => b.unusedBytes - a.unusedBytes)
+    .slice(0, MAX_CSS_ENTRIES);
 };

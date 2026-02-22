@@ -1,15 +1,13 @@
 import { Page } from "playwright";
 import { getCSSShakerData } from "./CSSCoverageReport";
-import { prunePayload, type AIPromptPayload } from "./TokenBudget";
 import type { AuditData } from "./types/index.js";
 
 export const generateAIPromptPayload = async (
   page: Page,
   auditData: AuditData,
-): Promise<string> => {
+) => {
   const cssShaker = await getCSSShakerData(page);
-
-  const payload: AIPromptPayload = {
+  const finalPayload = {
     context: {
       url: page.url(),
       timestamp: new Date().toISOString(),
@@ -23,10 +21,9 @@ export const generateAIPromptPayload = async (
     },
     selectors_to_fix: {
       layout_shifts: auditData.shiftAttribution?.map((s) => s.selector) || [],
-      lcp_element: auditData.lcpElement,
+      lcp_element: "Use trace to identify LCP candidate",
     },
   };
 
-  const pruned = prunePayload(payload);
-  return JSON.stringify(pruned, null, 2);
+  return JSON.stringify(finalPayload, null, 2);
 };

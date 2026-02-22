@@ -13,9 +13,11 @@ import type {
 } from "@/scripts/InjectFixesAndReAudit";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Skeleton } from "./ui/skeleton";
-import { AlertCircle, Loader2, Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
+import { useCopilotError } from "@/app/lib/copilot-error-context";
+import { ErrorCode } from "@/app/lib/constants";
+import type { StructuredApiError } from "@/app/types/api-error";
 
 type AuditPhase =
   | "idle"
@@ -45,7 +47,7 @@ export function AuditCanvas() {
   const [phase, setPhase] = useState<AuditPhase>("idle");
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
   const [scorecard, setScorecard] = useState<ScorecardDelta | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { pushError, clearError } = useCopilotError();
 
   const userChoicesRef = useRef<UserChoice[]>([]);
 
@@ -83,7 +85,7 @@ export function AuditCanvas() {
     if (!url.trim()) return;
 
     setPhase("auditing");
-    setError(null);
+    clearError();
     setScorecard(null);
     userChoicesRef.current = [];
 
@@ -95,7 +97,13 @@ export function AuditCanvas() {
       });
 
       if (!response.ok) {
-        throw new Error(`Audit failed: ${response.statusText}`);
+        const body = (await response.json().catch(() => null)) as {
+          error: StructuredApiError;
+        } | null;
+        const code = body?.error?.code ?? ErrorCode.AUDIT_FAILED;
+        pushError(code, body?.error);
+        setPhase("idle");
+        return;
       }
 
       const result = (await response.json()) as AuditResult & {
@@ -103,6 +111,19 @@ export function AuditCanvas() {
       };
       setAuditResult(result);
       setPhase("prompting");
+
+      const healthCheck = await fetch("/api/health").catch(() => null);
+      if (!healthCheck?.ok) {
+        const body = (await healthCheck?.json().catch(() => null)) as {
+          error?: StructuredApiError;
+        } | null;
+        pushError(
+          body?.error?.code ?? ErrorCode.SERVICE_UNAVAILABLE,
+          body?.error,
+        );
+        setPhase("idle");
+        return;
+      }
 
       appendMessage(
         new TextMessage({
@@ -113,7 +134,7 @@ export function AuditCanvas() {
 
       setPhase("interactive");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Audit failed");
+      pushError(ErrorCode.NETWORK_ERROR, err);
       setPhase("idle");
     }
   };
@@ -122,7 +143,7 @@ export function AuditCanvas() {
     if (!auditResult || !url.trim()) return;
 
     setPhase("reauditing");
-    setError(null);
+    clearError();
 
     const fixes: AIProposedFix[] = userChoicesRef.current.map((choice) => {
       switch (choice.type) {
@@ -161,14 +182,20 @@ export function AuditCanvas() {
       });
 
       if (!response.ok) {
-        throw new Error(`Re-audit failed: ${response.statusText}`);
+        const body = (await response.json().catch(() => null)) as {
+          error: StructuredApiError;
+        } | null;
+        const code = body?.error?.code ?? ErrorCode.REAUDIT_FAILED;
+        pushError(code, body?.error);
+        setPhase("interactive");
+        return;
       }
 
       const result = (await response.json()) as { scorecard: ScorecardDelta };
       setScorecard(result.scorecard);
       setPhase("interactive");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Re-audit failed");
+      pushError(ErrorCode.NETWORK_ERROR, err);
       setPhase("interactive");
     }
   };
@@ -229,13 +256,7 @@ export function AuditCanvas() {
 
       <div className="flex-1 overflow-auto">
         <div className="max-w-6xl mx-auto py-8 px-4 space-y-8">
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+          {/* Errors are displayed by the global CopilotErrorBanner */}
 
           {phase === "auditing" && (
             <div className="space-y-4 py-16">

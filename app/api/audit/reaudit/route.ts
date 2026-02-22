@@ -4,6 +4,8 @@ import {
   type AIProposedFix,
   type MetricScore,
 } from "@/scripts/InjectFixesAndReAudit";
+import { ErrorCode } from "@/app/lib/constants";
+import { buildErrorResponse } from "@/app/types/api-error";
 
 interface ReauditRequest {
   url: string;
@@ -18,7 +20,12 @@ export async function POST(request: Request) {
 
     if (!url || !fixes || !beforeMetrics) {
       return NextResponse.json(
-        { error: "url, fixes, and beforeMetrics are required" },
+        {
+          error: buildErrorResponse(
+            ErrorCode.INVALID_URL,
+            "url, fixes, and beforeMetrics are required",
+          ),
+        },
         { status: 400 },
       );
     }
@@ -29,7 +36,12 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Re-audit failed:", error);
     return NextResponse.json(
-      { error: "Failed to re-audit page" },
+      {
+        error: buildErrorResponse(
+          ErrorCode.REAUDIT_FAILED,
+          error instanceof Error ? error.message : "Unknown error",
+        ),
+      },
       { status: 500 },
     );
   }

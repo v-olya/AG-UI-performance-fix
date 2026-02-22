@@ -70,21 +70,21 @@ export function PerformanceAuditCard({
 
   return (
     <Card className="w-full max-w-4xl mx-auto overflow-hidden">
-      <CardHeader className="bg-primary text-primary-foreground p-6">
+      <CardHeader className="bg-primary/5 border-b border-primary/10 p-6">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
-            <CardTitle className="text-2xl flex items-center gap-2">
-              <Zap className="h-6 w-6" />
+            <CardTitle className="text-xl flex items-center gap-2 text-primary font-semibold tracking-tight">
+              <Zap className="h-5 w-5 text-primary/70" />
               Performance Audit
             </CardTitle>
-            <CardDescription className="text-primary-foreground/80 truncate max-w-md italic">
+            <CardDescription className="text-muted-foreground truncate max-w-md text-xs">
               {url}
             </CardDescription>
           </div>
           {scorecard && (
             <Badge
               variant="outline"
-              className="bg-white/10 text-white border-white/20 px-3 py-1"
+              className="bg-primary/8 text-primary border-primary/25 px-3 py-1 font-medium"
             >
               Analysis Active
             </Badge>
@@ -100,18 +100,21 @@ export function PerformanceAuditCard({
             return (
               <div
                 key={key}
-                className="flex flex-col items-center justify-center rounded-xl border bg-muted/30 p-4 transition-all hover:bg-muted/50"
+                className="flex flex-col items-center justify-center rounded-xl border border-border bg-card p-4 transition-all hover:bg-accent hover:border-primary/20 shadow-sm"
               >
                 <div className="flex items-center gap-2 mb-2">
-                  {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {Icon && <Icon className="h-4 w-4 text-primary/60" />}
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     {label}
                   </span>
                 </div>
-                <div className="text-2xl font-bold mb-2">
+                <div className="text-2xl font-bold mb-2 text-slate-700">
                   {formatUnit(key, value)}
                 </div>
-                <Badge variant={RATING_VARIANTS[rating]} className="capitalize">
+                <Badge
+                  variant={RATING_VARIANTS[rating]}
+                  className="capitalize text-xs"
+                >
                   {rating.replace("-", " ")}
                 </Badge>
               </div>

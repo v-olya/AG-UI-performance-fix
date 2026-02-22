@@ -50,14 +50,13 @@ export function PrioritySlot({
   const isHighest = id === "highest";
   const label = isHighest ? "Highest Priority" : "Background Priority";
 
-  // Slot container styling - Red for highest (urgent), Blue for background (defer)
   const containerColors = isOver
     ? isHighest
-      ? "border-red-500 bg-red-50/50"
-      : "border-blue-500 bg-blue-50/50"
+      ? "border-amber-400 bg-amber-50/60"
+      : "border-slate-400 bg-slate-50/60"
     : isHighest
-      ? "border-red-300 bg-red-50/30"
-      : "border-blue-300 bg-blue-50/30";
+      ? "border-amber-200 bg-amber-50/30"
+      : "border-slate-200 bg-slate-50/30";
 
   return (
     <div
@@ -65,7 +64,9 @@ export function PrioritySlot({
       className={`w-44 min-h-[200px] max-h-[320px] border-2 border-dashed rounded-xl p-4 ${containerColors} transition-all flex flex-col`}
     >
       <h3
-        className={`text-xs font-bold uppercase mb-4 tracking-wide ${isHighest ? "text-red-700" : "text-blue-700"}`}
+        className={`text-xs font-semibold uppercase mb-4 tracking-wide ${
+          isHighest ? "text-amber-700" : "text-slate-500"
+        }`}
       >
         {label}
       </h3>

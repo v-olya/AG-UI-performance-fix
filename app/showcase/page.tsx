@@ -96,32 +96,17 @@ function transformItem(item) {
   };
 }`;
 
-/* const sampleCodeRender = `function renderLargeList(items) {
-  const container = document.getElementById('list');
-  const fragments = document.createDocumentFragment();
-  
-  // Rendering 1000+ items at once causes jank
-  for (let i = 0; i < items.length; i++) {
-    const element = createListItem(items[i]);
-    fragments.appendChild(element);
-  }
-  
-  container.appendChild(fragments);
-}`;*/
-
 export default function ComponentShowcase() {
-  const handleYield = (position: number) => {
-    console.log(`Yield requested at position: ${position}`);
-  };
+  const handleYield = (_position: number) => {};
 
   return (
-    <main className="min-h-screen bg-gray-50 py-12 px-4">
+    <main className="min-h-screen bg-background py-12 px-4">
       <div className="max-w-6xl mx-auto space-y-16">
         <header className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          <h1 className="text-3xl font-semibold text-primary mb-3 tracking-tight">
             Component Catalog Showcase
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
             Explore our collection of performance optimization components
             designed to enhance web application speed and user experience.
           </p>

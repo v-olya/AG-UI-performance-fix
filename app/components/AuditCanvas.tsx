@@ -174,10 +174,10 @@ export function AuditCanvas() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white border-b px-6 py-4 shrink-0">
+    <main className="min-h-screen bg-background flex flex-col">
+      <header className="bg-card/80 border-b border-border px-6 py-4 shrink-0 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto flex items-center gap-4">
-          <h1 className="text-xl font-semibold text-gray-900 shrink-0">
+          <h1 className="text-sm font-semibold text-primary shrink-0 tracking-tight">
             Performance Fixer
           </h1>
           <div className="flex-1 flex gap-2">
@@ -216,9 +216,9 @@ export function AuditCanvas() {
               <Button
                 id="recalculate-button"
                 onClick={runRecalculate}
-                variant="secondary"
+                variant="outline"
                 disabled={userChoicesRef.current.length === 0}
-                className="bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
+                className="border-border text-foreground hover:bg-accent"
               >
                 Recalculate
               </Button>
@@ -240,9 +240,11 @@ export function AuditCanvas() {
           {phase === "auditing" && (
             <div className="space-y-4 py-16">
               <div className="flex flex-col items-center justify-center space-y-4">
-                <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+                <Loader2 className="h-12 w-12 animate-spin text-primary/50" />
                 <div className="space-y-2 text-center">
-                  <h3 className="text-lg font-medium">Analyzing Performance</h3>
+                  <h3 className="text-base font-medium text-foreground">
+                    Analyzing Performance
+                  </h3>
                   <p className="text-sm text-muted-foreground">
                     Launching Playwright and collecting metrics...
                   </p>
@@ -259,9 +261,11 @@ export function AuditCanvas() {
           {phase === "reauditing" && (
             <div className="space-y-4 py-16">
               <div className="flex flex-col items-center justify-center space-y-4">
-                <Loader2 className="h-12 w-12 animate-spin text-green-600" />
+                <Loader2 className="h-12 w-12 animate-spin text-primary/40" />
                 <div className="space-y-2 text-center">
-                  <h3 className="text-lg font-medium">Re-evaluating</h3>
+                  <h3 className="text-base font-medium text-foreground">
+                    Re-evaluating
+                  </h3>
                   <p className="text-sm text-muted-foreground">
                     Injecting fixes and re-measuring...
                   </p>
@@ -288,14 +292,14 @@ export function AuditCanvas() {
 
           {phase === "idle" && !auditResult && (
             <div className="flex flex-col items-center justify-center py-24 animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <div className="rounded-full bg-blue-50 p-6 mb-6">
-                <Search className="h-12 w-12 text-blue-600 opacity-50" />
+              <div className="rounded-full bg-primary/8 p-6 mb-6">
+                <Search className="h-12 w-12 text-primary/40" />
               </div>
               <div className="text-center max-w-sm">
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-foreground mb-2">
                   Ready to Audit
                 </h3>
-                <p className="text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   Enter a URL above to analyze its performance metrics and
                   generate AI-powered optimization fixes.
                 </p>

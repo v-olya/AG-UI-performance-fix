@@ -105,7 +105,7 @@ export function PriorityDock({
   };
 
   return (
-    <div className="w-full bg-white rounded-lg shadow-sm border p-6">
+    <div className="w-full bg-white/70 rounded-xl shadow-sm border border-border/50 p-6">
       <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex flex-col gap-6">
           {aiSuggestion && (

@@ -1,18 +1,46 @@
 import { BrowserContext, Page, CDPSession } from "playwright";
-import type { PerformanceReport, NetworkInfo, ResourceTiming } from "./types/index.js";
+import type {
+  PerformanceReport,
+  NetworkInfo,
+  ResourceTiming,
+  ResourceType,
+  LongTask,
+  PriorityDockEntry,
+} from "./types/index.js";
+
+const MAX_LONG_TASKS = 5;
+const MAX_PRIORITY_DOCK_ENTRIES = 10;
+const MIN_RESOURCE_SIZE_KB = 2;
+const LCP_SETTLE_TIMEOUT_MS = 2000;
+
+const inferResourceType = (url: string): ResourceType => {
+  const ext = url.split("?")[0]?.split(".").pop()?.toLowerCase() ?? "";
+  if (["js", "mjs", "cjs"].includes(ext)) return "script";
+  if (["css"].includes(ext)) return "css";
+  if (["woff", "woff2", "ttf", "otf", "eot"].includes(ext)) return "font";
+  if (["png", "jpg", "jpeg", "gif", "webp", "avif", "svg", "ico"].includes(ext))
+    return "img";
+  return "other";
+};
+
+const extractBasename = (url: string): string => {
+  try {
+    return new URL(url).pathname.split("/").pop() || url;
+  } catch {
+    return url.split("/").pop() || url;
+  }
+};
 
 export const runFullAudit = async (
   context: BrowserContext,
   url: string,
 ): Promise<PerformanceReport> => {
-  // 1. Start Tracing (Captures screenshots + layout shift events)
   const tracePath = `trace-${Date.now()}.zip`;
   await context.tracing.start({ screenshots: true, snapshots: true });
 
   const page: Page = await context.newPage();
   const client: CDPSession = await page.context().newCDPSession(page);
 
-  // 2. Setup CDP for Network & Profiling
   await client.send("Network.enable");
   await client.send("Profiler.enable");
   await client.send("Profiler.start");
@@ -25,25 +53,41 @@ export const runFullAudit = async (
     });
   });
 
-  // Navigate and wait for stability
   await page.goto(url, { waitUntil: "load" });
-  await page.waitForTimeout(2000); // Allow LCP/CLS to settle
+  await page.waitForTimeout(LCP_SETTLE_TIMEOUT_MS);
 
-  // 3. Extract Web Vitals & Resource Timing
   const metrics = await page.evaluate(async () => {
-    type LayoutShift = PerformanceEntry & { hadRecentInput: boolean; value: number };
+    type LayoutShiftEntry = PerformanceEntry & {
+      hadRecentInput: boolean;
+      value: number;
+    };
 
-    const getLCP = (): Promise<number> =>
+    type LCPEntry = PerformanceEntry & {
+      startTime: number;
+      element: Element | null;
+    };
+
+    const getLCP = (): Promise<{ time: number; selector: string }> =>
       new Promise((res) => {
         new PerformanceObserver((l) => {
-          const entries = l.getEntries();
+          const entries = l.getEntries() as unknown as LCPEntry[];
           if (entries.length > 0) {
-            res(entries[entries.length - 1]?.startTime || 0);
+            const last = entries[entries.length - 1];
+            const el = last?.element;
+            let selector = "unknown";
+            if (el) {
+              if (el.id) {
+                selector = `#${el.id}`;
+              } else {
+                selector = `${el.tagName.toLowerCase()}${el.className ? "." + String(el.className).split(" ").filter(Boolean).join(".") : ""}`;
+              }
+            }
+            res({ time: last?.startTime || 0, selector });
           } else {
-            res(0);
+            res({ time: 0, selector: "unknown" });
           }
         }).observe({ type: "largest-contentful-paint", buffered: true });
-        setTimeout(() => res(0), 1000);
+        setTimeout(() => res({ time: 0, selector: "unknown" }), 1000);
       });
 
     const getCLS = (): Promise<number> =>
@@ -52,18 +96,29 @@ export const runFullAudit = async (
         new PerformanceObserver((l) => {
           const entries = l.getEntries();
           for (const entry of entries) {
-            // Type guard: check for layout shift properties
             if (
               entry &&
               "hadRecentInput" in entry &&
               !entry.hadRecentInput &&
               "value" in entry
             ) {
-              score += (entry as LayoutShift).value;
+              score += (entry as unknown as LayoutShiftEntry).value;
             }
           }
         }).observe({ type: "layout-shift", buffered: true });
         setTimeout(() => res(score), 1000);
+      });
+
+    const getTBT = (): Promise<number> =>
+      new Promise((res) => {
+        let tbt = 0;
+        new PerformanceObserver((l) => {
+          for (const entry of l.getEntries()) {
+            const blocking = entry.duration - 50;
+            if (blocking > 0) tbt += blocking;
+          }
+        }).observe({ type: "longtask", buffered: true });
+        setTimeout(() => res(tbt), 1000);
       });
 
     const getResourceTiming = (): ResourceTiming[] => {
@@ -77,29 +132,41 @@ export const runFullAudit = async (
       }));
     };
 
-    const [lcp, cls, resources] = await Promise.all([getLCP(), getCLS(), getResourceTiming()]);
+    const [lcp, cls, tbt, resources] = await Promise.all([
+      getLCP(),
+      getCLS(),
+      getTBT(),
+      getResourceTiming(),
+    ]);
+
     const fcp =
       performance.getEntriesByName("first-contentful-paint")[0]?.startTime || 0;
 
     return {
-      lcp,
+      lcp: lcp.time,
+      lcpSelector: lcp.selector,
       cls,
       fcp,
+      tbt,
       resources,
     };
   });
 
-  // 4. Stop Profiler & Process Callstacks
   const { profile } = await client.send("Profiler.stop");
   const targetHost = new URL(url).hostname;
 
-  // Map profile nodes to readable "Long Task" candidates
-  const longTasks = profile.nodes
-    .filter((node) => node.callFrame.url !== "") // Ignore internal browser code
-    .slice(0, 8) // Get top 8 offenders
+  const totalSamples = profile.samples?.length || 1;
+  const profileDuration = profile.endTime - profile.startTime;
+
+  const longTasks: LongTask[] = profile.nodes
+    .filter((node) => node.callFrame.url !== "" && (node.hitCount ?? 0) > 0)
+    .sort((a, b) => (b.hitCount ?? 0) - (a.hitCount ?? 0))
+    .slice(0, MAX_LONG_TASKS)
     .map((node) => ({
-      duration_ms: 0, // In a real profiler this requires sample counting, but stack is more vital for AI
-      scriptUrl: node.callFrame.url,
+      approxDuration_ms: Math.round(
+        ((node.hitCount ?? 0) / totalSamples) * (profileDuration / 1000),
+      ),
+      scriptUrl: extractBasename(node.callFrame.url),
       isThirdParty: !node.callFrame.url.includes(targetHost),
       stackHint: [
         node.callFrame.functionName || "(anonymous)",
@@ -110,25 +177,35 @@ export const runFullAudit = async (
       ],
     }));
 
-  // 5. Finalize Priority Dock
-  const priorityDock = metrics.resources
-    .map((res) => ({
-      url: res.url,
-      transferSizeKb: Math.round(res.transferSize / 1024),
-      priority: networkMap.get(res.url)?.priority || "Unknown",
-      initiator: networkMap.get(res.url)?.initiator || "Unknown",
-      ttfb_ms: Math.round(res.ttfb),
-    }))
+  const priorityDock: PriorityDockEntry[] = metrics.resources
+    .map((res) => {
+      const sizeKb = Math.round(res.transferSize / 1024);
+      return {
+        basename: extractBasename(res.url),
+        fullUrl: res.url,
+        transferSizeKb: sizeKb,
+        priority: networkMap.get(res.url)?.priority || "Unknown",
+        initiator: networkMap.get(res.url)?.initiator || "Unknown",
+        ttfb_ms: Math.round(res.ttfb),
+        type: inferResourceType(res.url),
+      };
+    })
+    .filter((entry) => entry.transferSizeKb >= MIN_RESOURCE_SIZE_KB)
     .sort((a, b) => b.transferSizeKb - a.transferSizeKb)
-    .slice(0, 15);
+    .slice(0, MAX_PRIORITY_DOCK_ENTRIES);
 
-  // Stop Tracing
   await context.tracing.stop({ path: tracePath });
 
   return {
-    vitals: { lcp: metrics.lcp, cls: metrics.cls, fcp: metrics.fcp },
+    vitals: {
+      lcp: metrics.lcp,
+      cls: metrics.cls,
+      fcp: metrics.fcp,
+      tbt: metrics.tbt,
+    },
     longTasks,
     priorityDock,
+    lcpElement: metrics.lcpSelector,
     tracePath,
   };
 };

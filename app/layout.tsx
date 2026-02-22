@@ -13,9 +13,9 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "GenUI Page fixer",
+  title: "Make the page faster with AI",
   description:
-    "GenUI demo showcasing 4 UI patterns for fixing common web performance issues: script sandboxing, layout stabilization, resource prioritization, and execution splitting.",
+    "For fixing common issues, this AI-powered app showcases 4 UI patterns: script sandboxing, layout stabilization, resource prioritization, and execution splitting.",
 };
 
 export default function RootLayout({

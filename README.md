@@ -15,7 +15,7 @@ Instead of just giving text advice, this tool analyzes your page metrics, genera
 
 ## The AG-UI Pattern
 
-GenUI implements **Agent-Generated UI (AG-UI)**.
+This project showcases **Agent-Generated UI (AG-UI)**.
 
 - **Backend Agent** (`app/api/copilotkit/[[...slug]]/route.tsx`): A CopilotKit `BuiltInAgent` configured with a strict system prompt and a defined set of tools.
 - **Frontend Tools** (`app/hooks/useToolRenderers.tsx`): Uses `useFrontendTool()` to register tools and their corresponding `render()` functions.

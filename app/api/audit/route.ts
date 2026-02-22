@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { chromium, Browser } from "playwright";
-import { generateAIPromptPayload } from "@/scripts/AIprompt";
+import { generateAIPromptPayload } from "@/scripts/AIpromptPayload";
 import { runFullAudit } from "@/scripts/FullReport";
 import { extractLayoutShiftAttribution } from "@/scripts/ShiftAttribution";
 import type { AuditData } from "@/scripts/types/index.js";

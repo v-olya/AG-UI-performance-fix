@@ -17,6 +17,7 @@ interface SlotAssignments {
 interface PriorityDockProps {
   assets: AssetItem[];
   aiSuggestion?: string;
+  onPriorityChange?: (assetId: string, slot: "highest" | "background") => void;
 }
 
 function TimelineDropZone({ children }: { children: ReactNode }) {
@@ -33,7 +34,11 @@ function TimelineDropZone({ children }: { children: ReactNode }) {
   );
 }
 
-export function PriorityDock({ assets, aiSuggestion }: PriorityDockProps) {
+export function PriorityDock({
+  assets,
+  aiSuggestion,
+  onPriorityChange,
+}: PriorityDockProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [timelineAssets, setTimelineAssets] = useState<AssetItem[]>(assets);
 
@@ -81,6 +86,7 @@ export function PriorityDock({ assets, aiSuggestion }: PriorityDockProps) {
       }));
       // Remove from timeline when assigned to a slot
       setTimelineAssets((prev) => prev.filter((s) => s.id !== scriptId));
+      onPriorityChange?.(scriptId, slot);
     }
   };
 

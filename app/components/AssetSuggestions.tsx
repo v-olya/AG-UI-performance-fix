@@ -11,6 +11,7 @@ interface AssetSuggestionsCardProps {
   imageUrl?: string;
   width?: number;
   height?: number;
+  onSuggestionClick?: (suggestion: string) => void;
 }
 
 export function AssetSuggestionsCard({
@@ -20,6 +21,7 @@ export function AssetSuggestionsCard({
   imageUrl,
   width,
   height,
+  onSuggestionClick,
 }: AssetSuggestionsCardProps) {
   const hasDimensions = width != null && height != null;
   const isScript = type === "script";
@@ -82,6 +84,7 @@ export function AssetSuggestionsCard({
             )}
             role="button"
             tabIndex={0}
+            onClick={() => onSuggestionClick?.(label)}
           >
             {label}
           </Badge>

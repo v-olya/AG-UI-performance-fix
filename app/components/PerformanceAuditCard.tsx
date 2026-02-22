@@ -8,7 +8,22 @@ import {
   CardTitle,
 } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { Zap, Activity, Type, MousePointer2, Info } from "lucide-react";
+import { cn } from "@/app/lib/utils";
+import {
+  Zap,
+  Activity,
+  Type,
+  MousePointer2,
+  Info,
+  CircleHelp,
+} from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
+import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 
 interface PerformanceAuditCardProps {
   vitals: Vitals;
@@ -43,7 +58,26 @@ const RATING_VARIANTS: Record<
   poor: "destructive",
 };
 
-const VITAL_ICONS: Record<string, any> = {
+const VITAL_INFO: Record<string, { fullLabel: string; description: string }> = {
+  lcp: {
+    fullLabel: "Largest Contentful Paint",
+    description: "Time for the largest content element to become visible.",
+  },
+  fcp: {
+    fullLabel: "First Contentful Paint",
+    description: "Time until the first bit of content is rendered.",
+  },
+  cls: {
+    fullLabel: "Cumulative Layout Shift",
+    description: "Measures unexpected layout shifts during loading.",
+  },
+  tbt: {
+    fullLabel: "Total Blocking Time",
+    description: "Duration of input blocking by long tasks.",
+  },
+};
+
+const VITAL_ICONS: Record<string, typeof Zap> = {
   lcp: Zap,
   fcp: Activity,
   cls: Type,
@@ -53,6 +87,24 @@ const VITAL_ICONS: Record<string, any> = {
 const formatUnit = (key: string, value: number): string => {
   if (key === "cls") return value.toFixed(3);
   return `${Math.round(value)} ms`;
+};
+
+const getRatingDescription = (key: string, rating: VitalRating): string => {
+  const t = THRESHOLDS[key];
+  if (!t) return "";
+
+  const unit = key === "cls" ? "" : " ms";
+
+  switch (rating) {
+    case "good":
+      return `Great performance: below the ${t.good}${unit} threshold.`;
+    case "needs-improvement":
+      return `Needs optimization: target is below ${t.good}${unit}.`;
+    case "poor":
+      return `Poor performance: exceeds ${t.poor}${unit} baseline.`;
+    default:
+      return "";
+  }
 };
 
 export function PerformanceAuditCard({
@@ -92,81 +144,120 @@ export function PerformanceAuditCard({
         </div>
       </CardHeader>
 
-      <CardContent className="p-6 space-y-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          {vitalEntries.map(({ key, label, value }) => {
-            const rating = rateVital(key, value);
-            const Icon = VITAL_ICONS[key];
-            return (
-              <div
-                key={key}
-                className="flex flex-col items-center justify-center rounded-xl border border-border bg-card p-4 transition-all hover:bg-accent hover:border-primary/20 shadow-sm"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  {Icon && <Icon className="h-4 w-4 text-primary/60" />}
-                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    {label}
-                  </span>
-                </div>
-                <div className="text-2xl font-bold mb-2 text-slate-700">
-                  {formatUnit(key, value)}
-                </div>
-                <Badge
-                  variant={RATING_VARIANTS[rating]}
-                  className="capitalize text-xs"
-                >
-                  {rating.replace("-", " ")}
-                </Badge>
-              </div>
-            );
-          })}
-        </div>
+      <TooltipProvider delayDuration={100}>
+        <CardContent className="p-6 space-y-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            {vitalEntries.map(({ key, label, value }) => {
+              const rating = rateVital(key, value);
+              const Icon = VITAL_ICONS[key];
+              const info = VITAL_INFO[key];
 
-        <div className="flex items-start gap-3 rounded-lg border bg-slate-50 p-4 dark:bg-slate-900/50">
-          <Info className="h-5 w-5 text-blue-500 mt-0.5" />
-          <div className="space-y-1">
-            <p className="text-sm font-semibold">
-              Largest Contentful Paint (LCP) Element
-            </p>
-            <code className="block text-xs text-blue-600 dark:text-blue-400 break-all bg-blue-50 dark:bg-blue-900/30 p-2 rounded border border-blue-100 dark:border-blue-800">
-              {lcpElement}
-            </code>
+              return (
+                <div
+                  key={key}
+                  className="flex flex-col items-center justify-center rounded-xl border border-border bg-card p-5 transition-all hover:bg-accent/50 hover:border-primary/20 shadow-sm"
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    {Icon && (
+                      <Icon
+                        className="h-4 w-4 text-primary/70"
+                        strokeWidth={2.5}
+                      />
+                    )}
+                    <span className="text-sm font-semibold uppercase tracking-tight text-foreground">
+                      {label}
+                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button className="inline-flex items-center justify-center rounded-full p-0.5 hover:bg-muted transition-colors">
+                          <CircleHelp className="h-3.5 w-3.5 text-muted-foreground/60" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-[200px] text-center p-3">
+                        <p className="font-bold mb-1">{info?.fullLabel}</p>
+                        <p className="font-normal text-muted-foreground">
+                          {info?.description}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+
+                  <div className="text-xl font-bold mb-3 tracking-tight text-slate-900 dark:text-slate-100">
+                    {formatUnit(key, value)}
+                  </div>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="cursor-help w-full flex justify-center">
+                        <Badge
+                          variant={RATING_VARIANTS[rating]}
+                          className={cn(
+                            "capitalize text-[11px] px-3 py-0.5 font-bold tracking-tight shadow-sm transition-transform hover:scale-105",
+                            rating === "poor" &&
+                              "bg-red-700 hover:bg-red-800 text-white border-red-800/50",
+                          )}
+                        >
+                          {rating.replace("-", " ")}
+                        </Badge>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="text-center max-w-[200px] p-3 shadow-xl border-2">
+                      <p className="font-medium leading-relaxed">
+                        {getRatingDescription(key, rating)}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              );
+            })}
           </div>
-        </div>
 
-        {scorecard && (
-          <div className="rounded-xl border border-green-200 bg-green-50/50 p-6 dark:border-green-900/30 dark:bg-green-900/10">
-            <h3 className="text-sm font-bold text-green-800 dark:text-green-400 mb-4 flex items-center gap-2 italic uppercase">
-              <Zap className="h-4 w-4 fill-current" />
-              Optimization Impact
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground uppercase font-medium">
-                  LCP Improvement
-                </p>
-                <p
-                  className={`text-2xl font-black ${scorecard.improvements.lcp_saved_ms > 0 ? "text-green-600" : "text-amber-600"}`}
-                >
-                  {scorecard.improvements.lcp_saved_ms > 0 ? "−" : "+"}
-                  {Math.abs(scorecard.improvements.lcp_saved_ms)} ms
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground uppercase font-medium">
-                  Network Savings
-                </p>
-                <p
-                  className={`text-2xl font-black ${scorecard.improvements.bytes_saved_kb > 0 ? "text-green-600" : "text-amber-600"}`}
-                >
-                  {scorecard.improvements.bytes_saved_kb > 0 ? "−" : "+"}
-                  {Math.abs(scorecard.improvements.bytes_saved_kb)} KB
-                </p>
+          <Alert className="bg-slate-50 dark:bg-slate-900/50 border-border">
+            <Info className="h-4 w-4 text-blue-500" />
+            <AlertTitle className="text-sm font-semibold mb-2">
+              Largest Contentful Paint (LCP) Element
+            </AlertTitle>
+            <AlertDescription>
+              <code className="block text-xs text-blue-600 dark:text-blue-400 break-all bg-blue-50 dark:bg-blue-900/30 p-2.5 rounded-md border border-blue-100 dark:border-blue-800 font-mono">
+                {lcpElement}
+              </code>
+            </AlertDescription>
+          </Alert>
+
+          {scorecard && (
+            <div className="rounded-xl border border-green-200/50 bg-green-50/30 p-6 dark:border-green-900/20 dark:bg-green-900/5">
+              <h3 className="text-xs font-bold text-green-800 dark:text-green-400 mb-5 flex items-center gap-2 tracking-widest uppercase">
+                <Zap className="h-3.5 w-3.5 fill-current" />
+                Optimization Impact
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                <div className="space-y-2">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                    LCP Improvement
+                  </p>
+                  <p
+                    className={`text-xl font-bold tracking-tight ${scorecard.improvements.lcp_saved_ms > 0 ? "text-green-600" : "text-amber-600"}`}
+                  >
+                    {scorecard.improvements.lcp_saved_ms > 0 ? "−" : "+"}
+                    {Math.abs(scorecard.improvements.lcp_saved_ms)} ms
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                    Network Savings
+                  </p>
+                  <p
+                    className={`text-xl font-bold tracking-tight ${scorecard.improvements.bytes_saved_kb > 0 ? "text-green-600" : "text-amber-600"}`}
+                  >
+                    {scorecard.improvements.bytes_saved_kb > 0 ? "−" : "+"}
+                    {Math.abs(scorecard.improvements.bytes_saved_kb)} KB
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </CardContent>
+          )}
+        </CardContent>
+      </TooltipProvider>
     </Card>
   );
 }

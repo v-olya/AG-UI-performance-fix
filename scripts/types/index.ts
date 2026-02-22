@@ -1,5 +1,3 @@
-import type { PerformanceEntry } from "perf_hooks";
-
 export type SectionType =
   | "SCRIPT_SANDBOX"
   | "LAYOUT_SHIFT"
@@ -13,21 +11,37 @@ export interface ShiftAttribution {
   currRect: DOMRectReadOnly;
 }
 
+export interface Vitals {
+  lcp: number;
+  cls: number;
+  fcp: number;
+  tbt: number;
+}
+
+export interface LongTask {
+  approxDuration_ms: number;
+  scriptUrl: string;
+  stackHint: string[];
+  isThirdParty: boolean;
+}
+
+export type ResourceType = "script" | "css" | "font" | "img" | "other";
+
+export interface PriorityDockEntry {
+  basename: string;
+  fullUrl: string;
+  transferSizeKb: number;
+  priority: string;
+  initiator: string;
+  ttfb_ms: number;
+  type: ResourceType;
+}
+
 export interface PerformanceReport {
-  vitals: { lcp: number; cls: number; fcp: number };
-  longTasks: Array<{
-    duration_ms: number;
-    scriptUrl: string;
-    stackHint: string[];
-    isThirdParty: boolean;
-  }>;
-  priorityDock: Array<{
-    url: string;
-    transferSizeKb: number;
-    priority: string;
-    initiator: string;
-    ttfb_ms: number;
-  }>;
+  vitals: Vitals;
+  longTasks: LongTask[];
+  priorityDock: PriorityDockEntry[];
+  lcpElement: string;
   tracePath: string;
 }
 
@@ -37,20 +51,10 @@ export interface NetworkInfo {
 }
 
 export interface AuditData {
-  vitals: { lcp: number; cls: number; fcp: number };
-  longTasks: Array<{
-    duration_ms: number;
-    scriptUrl: string;
-    stackHint: string[];
-    isThirdParty: boolean;
-  }>;
-  priorityDock: Array<{
-    url: string;
-    transferSizeKb: number;
-    priority: string;
-    initiator: string;
-    ttfb_ms: number;
-  }>;
+  vitals: Vitals;
+  longTasks: LongTask[];
+  priorityDock: PriorityDockEntry[];
+  lcpElement: string;
   shiftAttribution?: ShiftAttribution[];
 }
 
@@ -58,18 +62,8 @@ export interface CSSCoverageReport {
   url: string;
   totalBytes: number;
   unusedBytes: number;
+  unusedKb: number;
   unusedPercentage: number;
-  unusedRulesSnippet: string;
-}
-
-export interface LayoutShift extends PerformanceEntry {
-  hadRecentInput: boolean;
-  value: number;
-  sources?: Array<{
-    node: Element;
-    previousRect: DOMRectReadOnly;
-    currentRect: DOMRectReadOnly;
-  }>;
 }
 
 export interface ResourceTiming {
@@ -78,8 +72,4 @@ export interface ResourceTiming {
   transferSize: number;
   responseStart: number;
   ttfb: number;
-}
-
-export function isLayoutShift(entry: PerformanceEntry): entry is LayoutShift {
-  return "hadRecentInput" in entry && "value" in entry;
 }

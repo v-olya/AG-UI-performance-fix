@@ -6,14 +6,9 @@ Instead of just giving text advice, this AI tool analyzes your page's metrics, g
 
 ## Table of Contents
 
-- [How It Works](#how-it-works)
 - [The AG-UI Pattern](#the-ag-ui-pattern)
-- [Available Tools](#available-tools)
 - [Component Showcase](#component-showcase)
 - [Prerequisites](#prerequisites)
-  - [Switching LLM Providers](#switching-llm-providers)
-- [Quick Start](#quick-start)
-  - [Environment Variables](#environment-variables)
 - [Error Handling](#error-handling)
   <details>
   <summary>Subsections</summary>
@@ -22,10 +17,9 @@ Instead of just giving text advice, this AI tool analyzes your page's metrics, g
   - [Handled error types](#handled-error-types)
   - [Known limitations](#known-limitations)
   - [Adding a new error type](#adding-a-new-error-type)
-
   </details>
-
 - [Stack](#stack)
+- [Screenshots](#screenshots)
 
 ## How It Works
 
@@ -47,7 +41,7 @@ This project showcases **Agent-Generated UI (AG-UI)**.
 - **Headless LLM Integration**: The traditional chat interface is omitted. We use `useCopilotChat()` headlessly, sending context programmatically via `appendMessage()`.
 - **Inline Rendering**: When the LLM calls a tool, CopilotKit streams and renders the native React component directly into the interface.
 
-## Available Tools
+### Available Tools
 
 | Tool                      | Purpose                                              |
 | ------------------------- | ---------------------------------------------------- |
@@ -183,3 +177,12 @@ CopilotKit v1.51 swallows LLM errors internally — `appendMessage` never reject
 - CopilotKit (AG-UI via `useFrontendTool`)
 - Playwright (Headless auditing)
 - Tailwind CSS + shadcn/ui
+
+## Screenshots
+
+<img width="2084" height="950" alt="localhost_3000_" src="https://github.com/user-attachments/assets/fb9d5c16-ec25-4e1d-81dd-759ca776bd75" />
+
+<img width="2084" height="4116" alt="localhost_3000_showcase" src="https://github.com/user-attachments/assets/3a94b7f5-d3f1-460e-a552-c9672edb4235" />
+
+
+

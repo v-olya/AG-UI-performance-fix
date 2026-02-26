@@ -25,8 +25,10 @@ function TimelineDropZone({ children }: { children: ReactNode }) {
   return (
     <div
       ref={setNodeRef}
-      className={`relative flex-1 h-56 bg-slate-50 border rounded-xl overflow-hidden transition-colors ${
-        isOver ? "border-green-500 bg-green-50/50" : "border-slate-200"
+      className={`relative flex-1 h-64 border-2 border-dashed rounded-2xl overflow-hidden transition-all duration-300 ${
+        isOver
+          ? "border-slate-400 bg-slate-100"
+          : "border-slate-200 bg-slate-50"
       }`}
     >
       {children}
@@ -40,15 +42,44 @@ export function PriorityDock({
   onPriorityChange,
 }: PriorityDockProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [timelineAssets, setTimelineAssets] = useState<AssetItem[]>(assets);
 
   const [assignments, setAssignments] = useState<SlotAssignments>(() => {
     return {
-      highest: assets.filter((s) => s.moveTo === "highest").map((s) => s.id),
+      highest: assets
+        .filter(
+          (s) =>
+            (s.moveTo === "highest" || s.priority === "VeryHigh") &&
+            !s.isSuggested,
+        )
+        .map((s) => s.id),
       background: assets
-        .filter((s) => s.moveTo === "background")
+        .filter(
+          (s) =>
+            (s.moveTo === "background" || s.priority === "Low") &&
+            !s.isSuggested,
+        )
         .map((s) => s.id),
     };
+  });
+
+  const [timelineAssets, setTimelineAssets] = useState<AssetItem[]>(() => {
+    const assignedIds = new Set([
+      ...assets
+        .filter(
+          (s) =>
+            (s.moveTo === "highest" || s.priority === "VeryHigh") &&
+            !s.isSuggested,
+        )
+        .map((s) => s.id),
+      ...assets
+        .filter(
+          (s) =>
+            (s.moveTo === "background" || s.priority === "Low") &&
+            !s.isSuggested,
+        )
+        .map((s) => s.id),
+    ]);
+    return assets.filter((s) => !assignedIds.has(s.id));
   });
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -80,63 +111,67 @@ export function PriorityDock({
       });
     } else if (over && (over.id === "highest" || over.id === "background")) {
       const slot = over.id as keyof SlotAssignments;
-      setAssignments((prev) => ({
-        ...prev,
-        [slot]: Array.from(new Set([...prev[slot], scriptId])),
-      }));
-      // Remove from timeline when assigned to a slot
+      setAssignments((prev) => {
+        const otherSlot = slot === "highest" ? "background" : "highest";
+        return {
+          ...prev,
+          [otherSlot]: prev[otherSlot].filter((id) => id !== scriptId),
+          [slot]: Array.from(new Set([...prev[slot], scriptId])),
+        };
+      });
       setTimelineAssets((prev) => prev.filter((s) => s.id !== scriptId));
       onPriorityChange?.(scriptId, slot);
     }
   };
 
-  // Get asset info for display
   const getAssetInfo = (id: string) => {
     const asset = assets.find((s) => s.id === id);
     if (!asset) return undefined;
     return { name: asset.name, type: asset.type };
   };
 
-  // Get asset info for drag overlay
   const getActiveAssetInfo = () => {
     if (!activeId) return null;
-    const asset = assets.find((s) => s.id === activeId);
-    return asset;
+    return assets.find((s) => s.id === activeId);
   };
 
   return (
-    <div className="w-full bg-white/70 rounded-xl shadow-sm border border-border/50 p-6">
+    <div className="w-full bg-white rounded-2xl shadow-xl border border-border p-8 text-left">
       <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-8">
           {aiSuggestion && (
-            <div className="p-4 text-sm">
-              <span className="font-semibold">AI Suggestion:</span>{" "}
-              {aiSuggestion}
+            <div className="p-5 rounded-xl bg-slate-50 border border-slate-200 flex gap-4 items-start">
+              <div className="mt-1 w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
+                <span className="text-slate-600 font-bold text-sm">i</span>
+              </div>
+              <div className="space-y-1">
+                <span className="font-bold text-slate-900 text-xs uppercase tracking-widest">
+                  Performance Insights
+                </span>
+                <p className="text-sm text-slate-700 leading-relaxed">
+                  {aiSuggestion}
+                </p>
+              </div>
             </div>
           )}
 
-          <div className="flex gap-4 items-stretch">
-            {/* Highest Priority Slot */}
+          <div className="flex gap-6 items-stretch min-h-[300px]">
             <PrioritySlot
               id="highest"
               assignedIds={assignments.highest}
               getAssetInfo={getAssetInfo}
             />
 
-            {/* Timeline - Loading Timeline with all assets */}
             <TimelineDropZone>
-              <div className="absolute inset-0 flex items-center px-4">
-                {/* Timeline axis */}
-                <div className="w-full h-0.5 bg-slate-300 relative">
-                  {/* Render all timeline boxes with overlapping support */}
+              <div className="absolute inset-0 flex items-center px-6">
+                <div className="w-full h-0.5 bg-slate-200 relative">
                   {timelineAssets.map((asset) => (
                     <TimelineBox key={asset.id} script={asset} />
                   ))}
                 </div>
               </div>
 
-              {/* Time markers */}
-              <div className="absolute bottom-3 left-4 right-4 flex justify-between text-xs text-slate-400 font-mono">
+              <div className="absolute bottom-4 left-6 right-6 flex justify-between text-[10px] text-slate-400 font-mono font-bold uppercase tracking-tighter">
                 <span>0ms</span>
                 <span>100ms</span>
                 <span>200ms</span>
@@ -146,7 +181,6 @@ export function PriorityDock({
               </div>
             </TimelineDropZone>
 
-            {/* Background/Lowest Priority Slot */}
             <PrioritySlot
               id="background"
               assignedIds={assignments.background}
@@ -154,9 +188,9 @@ export function PriorityDock({
             />
           </div>
 
-          <p className="text-sm text-gray-500 text-center">
-            Drag assets from the timeline to the priority slots to optimize
-            loading order
+          <p className="text-xs text-muted-foreground font-medium text-center">
+            Drag assets from the loading timeline into the priority slots as
+            suggested by the AI audit.
           </p>
         </div>
         <DragOverlay>
@@ -167,10 +201,12 @@ export function PriorityDock({
                 const colors = timelineColors[asset.type] || timelineColors.js;
                 return (
                   <div
-                    className={`px-4 py-3 rounded-lg border-2 shadow-xl text-xs font-mono ${colors?.bg} ${colors?.border} ${colors?.text}`}
+                    className={`px-4 py-3 rounded-xl border-2 shadow-2xl text-[11px] font-bold uppercase tracking-tight ${colors?.bg} ${colors?.border} ${colors?.text}`}
                   >
-                    <div className="font-semibold">{asset.name}</div>
-                    <div className="text-[10px] opacity-70">{asset.type}</div>
+                    <div>{asset.name}</div>
+                    <div className="text-[9px] opacity-60 font-mono">
+                      {asset.type} • {asset.volume}KB
+                    </div>
                   </div>
                 );
               })()

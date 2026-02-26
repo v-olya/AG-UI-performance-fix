@@ -13,7 +13,9 @@ export interface AssetItem {
   volume: number; // Represents duration/width
   startTime: number; // Represents start position
   type: AssetType;
+  priority?: string; // Initial priority from the audit
   moveTo?: "highest" | "background" | null;
+  isSuggested?: boolean;
 }
 
 const timelineColors: Record<
@@ -22,7 +24,7 @@ const timelineColors: Record<
 > = {
   js: {
     bg: "bg-orange-100",
-    border: "text-orange-600",
+    border: "border-orange-200",
     text: "text-orange-700",
     height: 48,
   },
@@ -54,7 +56,7 @@ export function TimelineBox({ script }: { script: AssetItem }) {
 
   const colors = timelineColors[script.type] || timelineColors.js;
 
-  const minHeight = 30;
+  const minHeight = 36;
   const maxHeight = 160;
   const normalizedVolume = script.volume / 500;
   const exponentialFactor = Math.pow(normalizedVolume, 0.4);
@@ -74,21 +76,23 @@ export function TimelineBox({ script }: { script: AssetItem }) {
             ref={setNodeRef}
             {...listeners}
             {...attributes}
-            className={`absolute ${colors?.bg} ${colors?.border} border-2 rounded-md cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all hover:scale-105 hover:z-30`}
+            className={`absolute border-2 rounded-xl cursor-grab active:cursor-grabbing shadow-sm transition-all hover:scale-110 hover:z-50 ${colors?.bg} ${colors?.border}`}
             style={{
               left: `${script.startTime}px`,
-              width: `${Math.max(script.volume, 70)}px`,
+              width: `${Math.max(script.volume, 80)}px`,
               height: `${dynamicHeight}px`,
               top: "50%",
               transform: `translateY(-50%)`,
               opacity: isDragging ? 0.6 : 1,
-              zIndex: isDragging ? 100 : 20,
+              zIndex: isDragging ? 200 : 20,
             }}
           >
             <div
-              className={`h-full flex flex-col justify-center px-2 ${colors?.text}`}
+              className={`h-full flex flex-col justify-center px-3 ${colors?.text}`}
             >
-              <div className="font-semibold truncate">{script.name}</div>
+              <div className="font-semibold truncate text-sm">
+                {script.name}
+              </div>
               <div className="text-xs opacity-70 flex justify-between">
                 <span>{script.type}</span>
                 <span>{script.volume}KB</span>
@@ -96,9 +100,12 @@ export function TimelineBox({ script }: { script: AssetItem }) {
             </div>
           </div>
         </TooltipTrigger>
-        <TooltipContent side="top">
-          <p>
-            {script.name} ({script.volume}KB)
+        <TooltipContent
+          side="top"
+          className="bg-slate-900 text-white border-white/10"
+        >
+          <p className="font-mono text-xs">
+            {script.name} • {script.volume}KB • {script.startTime}ms
           </p>
         </TooltipContent>
       </Tooltip>

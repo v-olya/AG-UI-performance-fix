@@ -239,6 +239,11 @@ export function useToolRenderers({
         );
       }
       const typedArgs = args as Record<string, unknown>;
+      // GUARD: If no source snippet was provided, do not show the splitter.
+      if (!typedArgs.code) {
+        return <></>;
+      }
+
       return (
         <SectionWrapper type="EXECUTION_SPLITTER">
           <ExecutionSplitter

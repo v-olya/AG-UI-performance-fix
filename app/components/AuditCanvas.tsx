@@ -54,7 +54,7 @@ export function AuditCanvas() {
 
   const [userChoices, setUserChoices] = useState<UserChoice[]>([]);
 
-  const { appendMessage, isLoading } = useCopilotChat();
+  const { appendMessage, reset, isLoading } = useCopilotChat();
 
   const handlePriorityChange = useCallback(
     (assetId: string, slot: "highest" | "background") => {
@@ -106,6 +106,7 @@ export function AuditCanvas() {
     clearError();
     setScorecard(null);
     setUserChoices([]);
+    reset(); // Clear previous suggestions
 
     try {
       const response = await fetch("/api/audit", {

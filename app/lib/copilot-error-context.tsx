@@ -11,7 +11,7 @@ import {
 } from "react";
 import { ErrorCode, ERROR_TITLE, ERROR_MESSAGE } from "@/app/lib/constants";
 
-export interface CopilotError {
+interface CopilotError {
   code: ErrorCode;
   title: string;
   message: string;

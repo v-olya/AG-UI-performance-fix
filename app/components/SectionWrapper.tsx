@@ -1,7 +1,7 @@
 import { SectionType } from "@/scripts/types";
 import { ReactNode } from "react";
 
-export const SECTIONS: Record<SectionType, string> = {
+const SECTIONS: Record<SectionType, string> = {
   SCRIPT_SANDBOX: "Script Sandboxing: 3rd-party scripts management",
   LAYOUT_SHIFT: "Layout Stabilization: shifts fix-up",
   PRIORITY_DOCK: "Priority Dock: prioritize or defer resources",

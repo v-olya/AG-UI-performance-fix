@@ -14,31 +14,42 @@ const PriorityDock = dynamic(
 
 const sampleAssets: AssetItem[] = [
   {
-    id: "styles-css",
-    name: "styles.css",
-    startTime: 15,
-    volume: 80,
+    id: "styles-main",
+    name: "global-styles.css",
+    startTime: 20,
+    duration: 800,
+    volume: 450,
     type: "css",
   },
   {
     id: "vendor-js",
     name: "vendor.js",
     startTime: 80,
+    duration: 350,
     volume: 150,
     type: "script",
   },
-  { id: "app-js", name: "app.js", startTime: 90, volume: 100, type: "script" },
+  {
+    id: "app-js",
+    name: "app.js",
+    startTime: 100,
+    duration: 210,
+    volume: 100,
+    type: "script",
+  },
   {
     id: "fonts-woff",
     name: "fonts.woff",
     startTime: 140,
+    duration: 450,
     volume: 60,
     type: "font",
   },
   {
     id: "fonts-woff2",
     name: "fonts.woff2",
-    startTime: 145,
+    startTime: 155,
+    duration: 380,
     volume: 50,
     type: "font",
   },
@@ -46,23 +57,40 @@ const sampleAssets: AssetItem[] = [
     id: "analytics-js",
     name: "analytics.js",
     startTime: 200,
+    duration: 180,
     volume: 90,
     type: "script",
     moveTo: "background",
   },
-  { id: "gtm-js", name: "gtm.js", startTime: 210, volume: 70, type: "script" },
+  {
+    id: "gtm-js",
+    name: "gtm.js",
+    startTime: 210,
+    duration: 250,
+    volume: 70,
+    type: "script",
+  },
   {
     id: "hero-img",
     name: "hero.jpg",
     startTime: 180,
+    duration: 1200,
     volume: 450,
     type: "img",
   },
-  { id: "logo-img", name: "logo.png", startTime: 220, volume: 25, type: "img" },
+  {
+    id: "logo-img",
+    name: "logo.png",
+    startTime: 220,
+    duration: 45,
+    volume: 25,
+    type: "img",
+  },
   {
     id: "icons-sprite",
     name: "icons.svg",
     startTime: 250,
+    duration: 110,
     volume: 85,
     type: "img",
   },
@@ -70,6 +98,7 @@ const sampleAssets: AssetItem[] = [
     id: "charts-js",
     name: "charts.js",
     startTime: 300,
+    duration: 550,
     volume: 280,
     type: "script",
   },
@@ -96,6 +125,8 @@ function transformItem(item) {
   };
 }`;
 
+import { FIX_STRATEGIES } from "../lib/fix-strategies";
+
 export default function ComponentShowcase() {
   const handleYield = (_position: number) => {};
 
@@ -120,25 +151,97 @@ export default function ComponentShowcase() {
           />
         </SectionWrapper>
 
+        {/* Section: Layout Stabilization */}
+        <SectionWrapper type="LAYOUT_SHIFT">
+          <AssetSuggestionsCard
+            assetName="Hero image"
+            type="img"
+            suggestions={[
+              {
+                type: FIX_STRATEGIES.USE_ASPECT_RATIO,
+                label: "Apply aspect-ratio: 4/3",
+                params: { width: 1200, height: 900 },
+              },
+              {
+                type: FIX_STRATEGIES.SET_DIMENSIONS,
+                label: "Set explicit dimensions",
+              },
+            ]}
+            imageUrl="/screenshot-3.png"
+            width={1200}
+            height={900}
+          />
+          <AssetSuggestionsCard
+            assetName="Article preview"
+            type="img"
+            suggestions={[
+              {
+                type: FIX_STRATEGIES.USE_ASPECT_RATIO,
+                label: "Apply aspect-ratio: 16/9",
+              },
+              {
+                type: FIX_STRATEGIES.ADD_SKELETON,
+                label: "Add skeleton placeholder",
+              },
+            ]}
+            imageUrl="/screenshot-1.png"
+            width={1050}
+            height={500}
+          />
+          <AssetSuggestionsCard
+            assetName="Ad banner"
+            type="img"
+            suggestions={[
+              {
+                type: FIX_STRATEGIES.SET_DIMENSIONS,
+                label: "Apply min-height",
+              },
+            ]}
+            imageUrl="/screenshot-2.png"
+            width={728}
+            height={600}
+          />
+        </SectionWrapper>
         {/* Section: Script Sandboxing */}
         <SectionWrapper type="SCRIPT_SANDBOX">
           <AssetSuggestionsCard
             assetName="heavy-analytics.js"
             type="script"
-            text={[
-              "Move to Web Worker",
-              "Defer until after LCP",
-              "Lazy load on scroll",
-              "Delete",
+            suggestions={[
+              {
+                type: FIX_STRATEGIES.ASYNC_SCRIPT,
+                label: "Switch to 'async' loading",
+              },
+              {
+                type: FIX_STRATEGIES.DEFER_SCRIPT,
+                label: "Defer until after LCP",
+              },
+              {
+                type: FIX_STRATEGIES.LAZY_LOAD_ON_INTERACTION,
+                label: "Lazy load on scroll",
+              },
+              {
+                type: FIX_STRATEGIES.REMOVE_UNUSED,
+                label: "Investigate removal",
+              },
             ]}
           />
           <AssetSuggestionsCard
             assetName="chat-widget.js"
             type="script"
-            text={[
-              "Delay until user interaction",
-              "Defer until after LCP",
-              "Load in background",
+            suggestions={[
+              {
+                type: FIX_STRATEGIES.LAZY_LOAD_ON_INTERACTION,
+                label: "Delay until user interaction",
+              },
+              {
+                type: FIX_STRATEGIES.DEFER_SCRIPT,
+                label: "Defer until after LCP",
+              },
+              {
+                type: FIX_STRATEGIES.ASYNC_SCRIPT,
+                label: "Load in background",
+              },
             ]}
           />
         </SectionWrapper>
@@ -150,40 +253,17 @@ export default function ComponentShowcase() {
         >
           <ExecutionSplitter
             code={sampleCode}
-            markers={[2, 5, 8]}
+            markers={[6]}
+            strategies={[
+              {
+                position: 6,
+                strategy: "scheduler.yield",
+                reason:
+                  "Yield control periodically during loop execution to prevent main thread blocking",
+              },
+            ]}
             onYield={handleYield}
             className="w-full"
-          />
-        </SectionWrapper>
-
-        {/* Section: Layout Stabilization */}
-        <SectionWrapper type="LAYOUT_SHIFT">
-          <AssetSuggestionsCard
-            assetName="Hero image"
-            type="img"
-            text={[
-              "Preload hint + fetchpriority='high'",
-              "Apply aspect-ratio: 4/3",
-            ]}
-            imageUrl="/screenshot-3.png"
-            width={1200}
-            height={900}
-          />
-          <AssetSuggestionsCard
-            assetName="Article preview"
-            type="img"
-            text={["Apply aspect-ratio: 16/9", "Apply min-height"]}
-            imageUrl="/screenshot-1.png"
-            width={1050}
-            height={500}
-          />
-          <AssetSuggestionsCard
-            assetName="Ad banner"
-            type="img"
-            text={["Apply min-height"]}
-            imageUrl="/screenshot-2.png"
-            width={728}
-            height={600}
           />
         </SectionWrapper>
       </div>

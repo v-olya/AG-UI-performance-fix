@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useCopilotChat } from "@copilotkit/react-core";
+import { CopilotChat } from "@copilotkit/react-ui";
 import { Role, TextMessage } from "@copilotkit/runtime-client-gql";
 import { PerformanceAuditCard } from "./PerformanceAuditCard";
 import { useToolRenderers } from "../hooks/useToolRenderers";
@@ -328,7 +329,17 @@ export function AuditCanvas() {
             </div>
           )}
 
-          {/* Tool-rendered components appear here via CopilotKit's message rendering */}
+          {/* Inline AI Fix Renderer */}
+          <div className="mt-12 space-y-6">
+            <CopilotChat
+              UserMessage={() => null}
+              Input={() => null}
+              className="genui-inline-chat"
+              labels={{
+                placeholder: "AI Suggestions will appear here",
+              }}
+            />
+          </div>
         </div>
       </div>
     </main>

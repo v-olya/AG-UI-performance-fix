@@ -154,18 +154,40 @@ themed-a2ui-surface {
   justify-content: center !important;
 }
 
-.copilotKitPopup {
-  position: relative !important;
-  top: auto !important;
-  bottom: auto !important;
-  right: auto !important;
-  left: auto !important;
-}
-
 .card {
-  width: 100%;
+  @apply bg-card text-card-foreground rounded-xl border shadow-sm;
 }
 
+/* Integrated AI Fix Renderer */
+.genui-inline-chat {
+  height: auto !important;
+  min-height: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.genui-inline-chat .copilotKitMessages {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+
+.genui-inline-chat .copilotKitMessagesContainer {
+  gap: 1.5rem !important;
+}
+
+.genui-inline-chat .copilotKitAssistantMessage {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.genui-inline-chat .copilotKitAssistantMessageContent {
+  color: hsl(var(--muted-foreground)) !important;
+  font-size: 0.875rem !important;
+}
 @media (min-width: 768px) {
   .card {
     width: 20rem;

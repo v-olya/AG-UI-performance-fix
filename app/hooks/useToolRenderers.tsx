@@ -13,17 +13,18 @@ const PriorityDock = dynamic(
 );
 import { Skeleton } from "../components/ui/skeleton";
 import { Card } from "../components/ui/card";
+import { StructuredSuggestion, FIX_STRATEGIES } from "../lib/fix-strategies";
 
 interface ScriptSandboxItem {
   assetName: string;
   type: "script";
-  suggestions: string[];
+  suggestions: StructuredSuggestion[];
 }
 
 interface LayoutShiftItem {
   assetName: string;
   type: "img";
-  suggestions: string[];
+  suggestions: StructuredSuggestion[];
   imageUrl?: string;
   width?: number;
   height?: number;
@@ -36,16 +37,17 @@ interface YieldStrategy {
 }
 
 interface ToolRendererCallbacks {
-  onYield: (scriptUrl: string, position: number) => void;
+  auditResult?: any | null;
+  onYield: (scriptUrl: string, position: number, strategy?: string) => void;
   onPriorityChange: (assetId: string, slot: "highest" | "background") => void;
-  onSuggestionClick: (assetName: string, suggestion: string) => void;
+  onSuggestionClick: (
+    assetName: string,
+    suggestion: StructuredSuggestion,
+  ) => void;
 }
 
-/**
- * Registers 4 frontend tools (one per SectionType) that the LLM can call.
- * Each tool maps the LLM arguments to existing showcase components.
- */
 export function useToolRenderers({
+  auditResult,
   onYield,
   onPriorityChange,
   onSuggestionClick,
@@ -60,7 +62,7 @@ export function useToolRenderers({
         name: "assets",
         type: "object[]",
         description:
-          "Array of assets: { id, name, volume (KB), startTime (ms), type (script|css|font|img), moveTo? (highest|background|null) }",
+          "Array of assets: { id, name, volume (KB), startTime (ms), type (script|css|font|img), moveTo? (highest|background|null), isSuggested? (boolean) }",
         required: true,
       },
       {
@@ -87,16 +89,40 @@ export function useToolRenderers({
           </SectionWrapper>
         );
       }
-      const assets = (args as Record<string, unknown>).assets as
-        | AssetItem[]
-        | undefined;
+      const aiAssets =
+        ((args as Record<string, unknown>).assets as AssetItem[]) ?? [];
       const aiSuggestion = (args as Record<string, unknown>).aiSuggestion as
         | string
         | undefined;
+
+      // Merge base audit data with AI suggestions
+      // The auditResult.data.performance.asset_priorities is the list of top N resources
+      const baseAssets =
+        (auditResult?.data?.performance?.asset_priorities as any[]) || [];
+
+      const mergedAssets: AssetItem[] = baseAssets.map((base: any) => {
+        const suggestion = aiAssets.find(
+          (s) =>
+            s.id === base.id ||
+            s.name === base.basename ||
+            s.id === base.fullUrl,
+        );
+        return {
+          id: base.id || base.fullUrl || base.basename,
+          name: base.basename,
+          volume: base.transferSizeKb,
+          startTime: base.startTime || 0,
+          type: base.type,
+          priority: base.priority,
+          isSuggested: suggestion?.isSuggested ?? false,
+          moveTo: suggestion?.moveTo ?? null,
+        };
+      });
+
       return (
         <SectionWrapper type="PRIORITY_DOCK">
           <PriorityDock
-            assets={assets ?? []}
+            assets={mergedAssets}
             aiSuggestion={aiSuggestion}
             onPriorityChange={onPriorityChange}
           />
@@ -114,8 +140,7 @@ export function useToolRenderers({
       {
         name: "items",
         type: "object[]",
-        description:
-          'Array: { assetName: string, type: "script", suggestions: string[] }',
+        description: `Array: { assetName: string, type: "script", suggestions: Array<{ type: "${FIX_STRATEGIES.DEFER_SCRIPT}" | "${FIX_STRATEGIES.ASYNC_SCRIPT}" | "${FIX_STRATEGIES.REMOVE_UNUSED}" | "${FIX_STRATEGIES.LAZY_LOAD_ON_INTERACTION}", label: string, params?: object }> }`,
         required: true,
       },
     ],
@@ -148,7 +173,7 @@ export function useToolRenderers({
               key={item.assetName}
               assetName={item.assetName}
               type={item.type}
-              text={item.suggestions}
+              suggestions={item.suggestions}
               onSuggestionClick={(suggestion) =>
                 onSuggestionClick(item.assetName, suggestion)
               }
@@ -211,10 +236,12 @@ export function useToolRenderers({
       return (
         <SectionWrapper type="EXECUTION_SPLITTER">
           <ExecutionSplitter
+            scriptUrl={(typedArgs.scriptUrl as string) ?? ""}
             code={(typedArgs.code as string) ?? ""}
             markers={(typedArgs.markers as number[]) ?? []}
-            onYield={(pos) =>
-              onYield((typedArgs.scriptUrl as string) ?? "", pos)
+            strategies={typedArgs.yieldStrategies as YieldStrategy[]}
+            onYield={(pos, strategy) =>
+              onYield((typedArgs.scriptUrl as string) ?? "", pos, strategy)
             }
           />
           {(typedArgs.yieldStrategies as YieldStrategy[] | undefined)?.map(
@@ -238,8 +265,7 @@ export function useToolRenderers({
       {
         name: "items",
         type: "object[]",
-        description:
-          'Array: { assetName, type: "img", suggestions: string[], imageUrl?, width?, height? }',
+        description: `Array: { assetName, type: "img", suggestions: Array<{ type: "${FIX_STRATEGIES.SET_DIMENSIONS}" | "${FIX_STRATEGIES.USE_ASPECT_RATIO}" | "${FIX_STRATEGIES.ADD_SKELETON}", label: string, params?: { width: number, height: number } }>, imageUrl?, width?, height? }`,
         required: true,
       },
     ],
@@ -267,7 +293,7 @@ export function useToolRenderers({
               key={item.assetName}
               assetName={item.assetName}
               type={item.type}
-              text={item.suggestions}
+              suggestions={item.suggestions}
               imageUrl={item.imageUrl}
               width={item.width}
               height={item.height}

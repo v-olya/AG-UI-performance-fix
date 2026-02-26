@@ -84,7 +84,7 @@ export const generateScorecard = async (
       });
     }
 
-    // B. Replace specific JS/CSS files (e.g., AI stripped out unused code)
+    // B. Smart Patch specific JS/CSS files
     const replaceFix = fixes.find(
       (f) =>
         f.type === "js_replace" &&
@@ -92,13 +92,29 @@ export const generateScorecard = async (
         reqUrl.includes(f.targetFileUrl),
     );
     if (replaceFix) {
-      // We fulfill the request with the AI's optimized code instead of fetching it from the server
+      const response = await route.fetch();
+      let body = await response.text();
+
+      // Check if it's a line-based patch formatted as "/* Line X */ CODE"
+      const patchMatch = replaceFix.content.match(/\/\* Line (\d+) \*\/ (.*)/);
+      if (patchMatch) {
+        const lineNum = parseInt(patchMatch[1]!, 10);
+        const patchCode = patchMatch[2]!;
+        const lines = body.split("\n");
+        // Inject the code at the target line
+        lines.splice(lineNum, 0, patchCode);
+        body = lines.join("\n");
+      } else {
+        // Fallback: Replace total content if not a line-based patch
+        body = replaceFix.content;
+      }
+
       return route.fulfill({
         status: 200,
         contentType: reqUrl.endsWith(".css")
           ? "text/css"
           : "application/javascript",
-        body: replaceFix.content,
+        body,
       });
     }
 

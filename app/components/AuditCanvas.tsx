@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useCopilotChat } from "@copilotkit/react-core";
 import { CopilotChat } from "@copilotkit/react-ui";
 import { Role, TextMessage } from "@copilotkit/runtime-client-gql";
@@ -19,6 +19,7 @@ import { Loader2, Search } from "lucide-react";
 import { useCopilotError } from "@/app/lib/copilot-error-context";
 import { ErrorCode } from "@/app/lib/constants";
 import type { StructuredApiError } from "@/app/types/api-error";
+import { StructuredSuggestion, FIX_STRATEGIES } from "@/app/lib/fix-strategies";
 
 type AuditPhase =
   | "idle"
@@ -38,9 +39,10 @@ interface UserChoice {
   assetId?: string;
   assetName?: string;
   slot?: "highest" | "background";
-  suggestion?: string;
+  suggestion?: StructuredSuggestion; // Changed to structured
   scriptUrl?: string;
   position?: number;
+  strategy?: string;
 }
 
 export function AuditCanvas() {
@@ -50,33 +52,48 @@ export function AuditCanvas() {
   const [scorecard, setScorecard] = useState<ScorecardDelta | null>(null);
   const { pushError, clearError } = useCopilotError();
 
-  const userChoicesRef = useRef<UserChoice[]>([]);
+  const [userChoices, setUserChoices] = useState<UserChoice[]>([]);
 
   const { appendMessage, isLoading } = useCopilotChat();
 
   const handlePriorityChange = useCallback(
     (assetId: string, slot: "highest" | "background") => {
-      userChoicesRef.current.push({ type: "priority", assetId, slot });
+      setUserChoices((prev) => [...prev, { type: "priority", assetId, slot }]);
     },
     [],
   );
 
   const handleSuggestionClick = useCallback(
-    (assetName: string, suggestion: string) => {
-      userChoicesRef.current.push({
-        type: "suggestion",
-        assetName,
-        suggestion,
-      });
+    (assetName: string, suggestion: StructuredSuggestion) => {
+      setUserChoices((prev) => [
+        ...prev,
+        {
+          type: "suggestion",
+          assetName,
+          suggestion,
+        },
+      ]);
     },
     [],
   );
 
-  const handleYield = useCallback((scriptUrl: string, position: number) => {
-    userChoicesRef.current.push({ type: "yield", scriptUrl, position });
-  }, []);
+  const handleYield = useCallback(
+    (scriptUrl: string, position: number, strategy?: string) => {
+      setUserChoices((prev) => [
+        ...prev,
+        {
+          type: "yield",
+          scriptUrl,
+          position,
+          strategy,
+        },
+      ]);
+    },
+    [],
+  );
 
   useToolRenderers({
+    auditResult,
     onYield: handleYield,
     onPriorityChange: handlePriorityChange,
     onSuggestionClick: handleSuggestionClick,
@@ -88,7 +105,7 @@ export function AuditCanvas() {
     setPhase("auditing");
     clearError();
     setScorecard(null);
-    userChoicesRef.current = [];
+    setUserChoices([]);
 
     try {
       const response = await fetch("/api/audit", {
@@ -146,29 +163,59 @@ export function AuditCanvas() {
     setPhase("reauditing");
     clearError();
 
-    const fixes: AIProposedFix[] = userChoicesRef.current.map((choice) => {
-      switch (choice.type) {
-        case "priority":
-          return {
-            type: "head_injection" as const,
-            content:
-              choice.slot === "highest"
-                ? `<link rel="preload" href="${choice.assetId}" as="script" fetchpriority="high">`
-                : `<script defer src="${choice.assetId}"></script>`,
-          };
-        case "suggestion":
-          return {
-            type: "head_injection" as const,
-            content: `<!-- Fix: ${choice.assetName} — ${choice.suggestion} -->`,
-          };
-        case "yield":
-          return {
-            type: "js_replace" as const,
-            targetFileUrl: choice.scriptUrl,
-            content: `// Yield point inserted at line ${choice.position}`,
-          };
-      }
-    });
+    const fixes: AIProposedFix[] = userChoices
+      .map((choice) => {
+        switch (choice.type) {
+          case "priority":
+            return {
+              type: "head_injection" as const,
+              content:
+                choice.slot === "highest"
+                  ? `<link rel="preload" href="${choice.assetId}" as="script" fetchpriority="high">`
+                  : `<script defer src="${choice.assetId}"></script>`,
+            };
+          case "suggestion":
+            if (!choice.suggestion) return null;
+            const { type, params } = choice.suggestion;
+
+            switch (type) {
+              case FIX_STRATEGIES.SET_DIMENSIONS:
+                return {
+                  type: "css_override" as const,
+                  content: `img[src*="${choice.assetName}"] { width: ${params?.width}px !important; height: ${params?.height}px !important; aspect-ratio: ${params?.width}/${params?.height} !important; }`,
+                };
+              case FIX_STRATEGIES.DEFER_SCRIPT:
+                return {
+                  type: "head_injection" as const,
+                  content: `<script src="${choice.assetName}" defer></script>`,
+                };
+              case FIX_STRATEGIES.ASYNC_SCRIPT:
+                return {
+                  type: "head_injection" as const,
+                  content: `<script src="${choice.assetName}" async></script>`,
+                };
+              default:
+                return {
+                  type: "head_injection" as const,
+                  content: `<!-- Fix: ${choice.assetName} — ${choice.suggestion.label} -->`,
+                };
+            }
+          case "yield":
+            const code =
+              choice.strategy === "scheduler.yield"
+                ? "await scheduler.yield();"
+                : choice.strategy === "requestIdleCallback"
+                  ? "await new Promise(res => requestIdleCallback(res));"
+                  : "await new Promise(res => setTimeout(res, 0));";
+
+            return {
+              type: "js_replace" as const,
+              targetFileUrl: choice.scriptUrl,
+              content: `/* Line ${choice.position} */ ${code}`,
+            };
+        }
+      })
+      .filter(Boolean) as AIProposedFix[];
 
     const beforeMetrics: MetricScore = {
       lcp_ms: Math.round(auditResult.vitals.lcp),
@@ -245,7 +292,7 @@ export function AuditCanvas() {
                 id="recalculate-button"
                 onClick={runRecalculate}
                 variant="outline"
-                disabled={userChoicesRef.current.length === 0}
+                disabled={userChoices.length === 0}
                 className="border-border text-foreground hover:bg-accent"
               >
                 Recalculate

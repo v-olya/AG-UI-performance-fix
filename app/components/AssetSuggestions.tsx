@@ -3,21 +3,22 @@ import { Badge } from "./ui/badge";
 import { DimensionIndicators } from "./ui/helpers/DimensionIndicators";
 import { cn } from "../lib/utils";
 import { type AssetType } from "./TimelineBox";
+import { StructuredSuggestion } from "../lib/fix-strategies";
 
 interface AssetSuggestionsCardProps {
   assetName: string;
   type: AssetType;
-  text: string[];
+  suggestions: StructuredSuggestion[];
   imageUrl?: string;
   width?: number;
   height?: number;
-  onSuggestionClick?: (suggestion: string) => void;
+  onSuggestionClick?: (suggestion: StructuredSuggestion) => void;
 }
 
 export function AssetSuggestionsCard({
   assetName,
   type,
-  text,
+  suggestions,
   imageUrl,
   width,
   height,
@@ -71,11 +72,10 @@ export function AssetSuggestionsCard({
         )}
       </div>
 
-      {/* Right column - Stacked badges/buttons */}
       <div className="flex flex-col flex-1 justify-center gap-3 p-5 bg-card min-w-[180px]">
-        {text.map((label) => (
+        {suggestions.map((suggestion) => (
           <Badge
-            key={label}
+            key={suggestion.label}
             variant="secondary"
             className={cn(
               "justify-center py-3 px-4 text-sm rounded-lg cursor-pointer whitespace-normal h-auto leading-tight",
@@ -84,9 +84,9 @@ export function AssetSuggestionsCard({
             )}
             role="button"
             tabIndex={0}
-            onClick={() => onSuggestionClick?.(label)}
+            onClick={() => onSuggestionClick?.(suggestion)}
           >
-            {label}
+            {suggestion.label}
           </Badge>
         ))}
       </div>

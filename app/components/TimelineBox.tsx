@@ -10,10 +10,11 @@ export type AssetType = "script" | "css" | "font" | "img";
 export interface AssetItem {
   id: string;
   name: string;
-  volume: number; // Represents duration/width
-  startTime: number; // Represents start position
+  volume: number;
+  startTime: number;
+  duration?: number;
   type: AssetType;
-  priority?: string; // Initial priority from the audit
+  priority?: string;
   moveTo?: "highest" | "background" | null;
   isSuggested?: boolean;
 }
@@ -48,7 +49,13 @@ const timelineColors: Record<
   },
 };
 
-export function TimelineBox({ script }: { script: AssetItem }) {
+export function TimelineBox({
+  script,
+  maxTime = 500,
+}: {
+  script: AssetItem;
+  maxTime?: number;
+}) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: script.id,
     data: script,
@@ -78,8 +85,11 @@ export function TimelineBox({ script }: { script: AssetItem }) {
             {...attributes}
             className={`absolute border-2 rounded-xl cursor-grab active:cursor-grabbing shadow-sm transition-all hover:scale-110 hover:z-50 ${colors?.bg} ${colors?.border}`}
             style={{
-              left: `${script.startTime}px`,
-              width: `${Math.max(script.volume, 80)}px`,
+              left: `${Math.min((script.startTime / maxTime) * 100, 98)}%`,
+              width:
+                script.duration !== undefined
+                  ? `${Math.max((script.duration / maxTime) * 100, 2)}%`
+                  : `${Math.max(script.volume, 80)}px`,
               height: `${dynamicHeight}px`,
               top: "50%",
               transform: `translateY(-50%)`,

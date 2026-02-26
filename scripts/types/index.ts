@@ -29,7 +29,7 @@ export interface LongTask {
   lineOffset?: number; // Starting line number of the snippet in original file
 }
 
-export type ResourceType = "script" | "css" | "font" | "img" | "other";
+export type ResourceType = "script" | "css" | "font" | "img";
 
 export interface PriorityDockEntry {
   basename: string;
@@ -38,6 +38,7 @@ export interface PriorityDockEntry {
   priority: string;
   initiator: string;
   ttfb_ms: number;
+  duration_ms: number;
   type: ResourceType;
 }
 
@@ -76,4 +77,5 @@ export interface ResourceTiming {
   transferSize: number;
   responseStart: number;
   ttfb: number;
+  duration: number;
 }

@@ -111,7 +111,7 @@ export function useToolRenderers({
           id: base.id || base.fullUrl || base.basename,
           name: base.basename,
           volume: base.transferSizeKb,
-          startTime: base.startTime || 0,
+          startTime: base.startTime ?? base.ttfb_ms ?? 0,
           type: base.type,
           priority: base.priority,
           isSuggested: suggestion?.isSuggested ?? false,
@@ -122,6 +122,7 @@ export function useToolRenderers({
       return (
         <SectionWrapper type="PRIORITY_DOCK">
           <PriorityDock
+            key={mergedAssets.map((a) => a.id).join(",") + status}
             assets={mergedAssets}
             aiSuggestion={aiSuggestion}
             onPriorityChange={onPriorityChange}
@@ -214,6 +215,11 @@ export function useToolRenderers({
         description:
           'Array: { position: number, strategy: "setTimeout"|"scheduler.yield"|"requestIdleCallback", reason: string }',
       },
+      {
+        name: "lineOffset",
+        type: "number",
+        description: "Starting line number of the snippet in the original file",
+      },
     ],
     handler: () => {
       return "Execution Splitter rendered";
@@ -241,7 +247,11 @@ export function useToolRenderers({
             markers={(typedArgs.markers as number[]) ?? []}
             strategies={typedArgs.yieldStrategies as YieldStrategy[]}
             onYield={(pos, strategy) =>
-              onYield((typedArgs.scriptUrl as string) ?? "", pos, strategy)
+              onYield(
+                (typedArgs.scriptUrl as string) ?? "",
+                pos + ((typedArgs.lineOffset as number) ?? 0),
+                strategy,
+              )
             }
           />
           {(typedArgs.yieldStrategies as YieldStrategy[] | undefined)?.map(

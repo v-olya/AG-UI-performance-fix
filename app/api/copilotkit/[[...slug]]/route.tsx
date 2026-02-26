@@ -7,7 +7,7 @@ import { BuiltInAgent } from "@copilotkit/runtime/v2";
 import { createOpenAI } from "@ai-sdk/openai";
 import { NextRequest } from "next/server";
 
-const ollamaModel = process.env.OLLAMA_MODEL || "gpt-oss:20b-cloud";
+const ollamaModel = process.env.OLLAMA_MODEL || "qwen3-coder:480b-cloud";
 const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 
 const ollamaProvider = createOpenAI({

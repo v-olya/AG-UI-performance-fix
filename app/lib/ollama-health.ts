@@ -3,7 +3,7 @@ import type { StructuredApiError } from "@/app/types/api-error";
 import { buildErrorResponse } from "@/app/types/api-error";
 
 const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-const ollamaModel = process.env.OLLAMA_MODEL || "gpt-oss:20b-cloud";
+const ollamaModel = process.env.OLLAMA_MODEL || "qwen3-coder:480b-cloud";
 const HEALTH_TIMEOUT_MS = 3_000;
 
 interface OllamaTagsResponse {

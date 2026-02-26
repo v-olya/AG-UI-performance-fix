@@ -21,8 +21,12 @@ export interface Vitals {
 export interface LongTask {
   approxDuration_ms: number;
   scriptUrl: string;
+  fullScriptUrl?: string;
   stackHint: string[];
   isThirdParty: boolean;
+  sourceSnippet?: string;
+  lineNumber?: number;
+  lineOffset?: number; // Starting line number of the snippet in original file
 }
 
 export type ResourceType = "script" | "css" | "font" | "img" | "other";

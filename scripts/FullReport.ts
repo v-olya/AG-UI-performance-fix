@@ -10,7 +10,7 @@ import type {
 
 const MAX_LONG_TASKS = 5;
 const MAX_PRIORITY_DOCK_ENTRIES = 10;
-const MIN_RESOURCE_SIZE_KB = 2;
+const MIN_RESOURCE_SIZE_KB = 0.5;
 const LCP_SETTLE_TIMEOUT_MS = 2000;
 
 const inferResourceType = (url: string): ResourceType => {
@@ -158,7 +158,7 @@ export const runFullAudit = async (
   const totalSamples = profile.samples?.length || 1;
   const profileDuration = profile.endTime - profile.startTime;
 
-  const longTasks: LongTask[] = profile.nodes
+  const longTasksRaw = profile.nodes
     .filter((node) => node.callFrame.url !== "" && (node.hitCount ?? 0) > 0)
     .sort((a, b) => (b.hitCount ?? 0) - (a.hitCount ?? 0))
     .slice(0, MAX_LONG_TASKS)
@@ -167,6 +167,8 @@ export const runFullAudit = async (
         ((node.hitCount ?? 0) / totalSamples) * (profileDuration / 1000),
       ),
       scriptUrl: extractBasename(node.callFrame.url),
+      fullScriptUrl: node.callFrame.url,
+      lineNumber: node.callFrame.lineNumber,
       isThirdParty: !node.callFrame.url.includes(targetHost),
       stackHint: [
         node.callFrame.functionName || "(anonymous)",
@@ -176,6 +178,40 @@ export const runFullAudit = async (
         }) || []),
       ],
     }));
+
+  // FETCH REAL SOURCE for 1st-party scripts (within a window of the bottleneck line)
+  const longTasks: LongTask[] = await Promise.all(
+    longTasksRaw.map(async (task) => {
+      if (task.isThirdParty || !task.fullScriptUrl) return task;
+
+      try {
+        const scriptSource = await page.evaluate(async (url) => {
+          try {
+            const resp = await fetch(url);
+            return await resp.text();
+          } catch {
+            return null;
+          }
+        }, task.fullScriptUrl);
+
+        if (scriptSource && task.lineNumber !== undefined) {
+          const lines = scriptSource.split("\n");
+          const start = Math.max(0, task.lineNumber - 20); // 20 lines before
+          const end = Math.min(lines.length, task.lineNumber + 50); // 50 lines after
+          const snippet = lines.slice(start, end).join("\n");
+          return {
+            ...task,
+            sourceSnippet: snippet,
+            lineNumber: task.lineNumber - start,
+            lineOffset: start,
+          };
+        }
+      } catch (e) {
+        console.error("Failed to fetch script source:", e);
+      }
+      return task;
+    }),
+  );
 
   const priorityDock: PriorityDockEntry[] = metrics.resources
     .map((res) => {

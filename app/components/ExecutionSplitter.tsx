@@ -23,7 +23,12 @@ export function ExecutionSplitter({
   className = "",
   scriptUrl = "blocking_logic.js",
 }: ExecutionSplitterProps) {
-  const lines = useMemo(() => code.split("\n"), [code]);
+  const lines = useMemo(() => {
+    if (!code) return [];
+    // Handle literal \n or escaped newlines from AI source
+    const normalized = code.replace(/\\n/g, "\n");
+    return normalized.split("\n");
+  }, [code]);
   const markerSet = useMemo(() => new Set<number>(markers), [markers]);
 
   return (
@@ -133,9 +138,9 @@ export function ExecutionSplitter({
                 {lines.map((line, i) => (
                   <div
                     key={`line-content-${i}`}
-                    className="h-[26px] flex items-center px-4 font-mono text-sm group hover:bg-white/[0.02] transition-colors"
+                    className="h-[26px] flex items-center px-4 font-mono text-sm group hover:bg-white/[0.02] transition-colors overflow-visible"
                   >
-                    <code className="text-[#e6edf3] whitespace-pre">
+                    <code className="text-[#e6edf3] whitespace-pre inline-block min-h-[1em]">
                       {line === "" ? "\u00a0" : line}
                     </code>
                   </div>

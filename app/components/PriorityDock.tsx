@@ -25,10 +25,8 @@ function TimelineDropZone({ children }: { children: ReactNode }) {
   return (
     <div
       ref={setNodeRef}
-      className={`relative flex-1 h-64 border-2 border-dashed rounded-2xl overflow-hidden transition-all duration-300 ${
-        isOver
-          ? "border-slate-400 bg-slate-100"
-          : "border-slate-200 bg-slate-50"
+      className={`relative flex-1 h-56 bg-slate-50 border rounded-xl overflow-hidden transition-colors ${
+        isOver ? "border-green-500 bg-green-50/50" : "border-slate-200"
       }`}
     >
       {children}
@@ -46,19 +44,13 @@ export function PriorityDock({
   const [assignments, setAssignments] = useState<SlotAssignments>(() => {
     return {
       highest: assets
-        .filter(
-          (s) =>
-            (s.moveTo === "highest" ||
-              ["preload", 'fetchpriority="high"'].includes(s.priority || "")) &&
-            !s.isSuggested,
+        .filter((s) =>
+          ["preload", 'fetchpriority="high"'].includes(s.priority || ""),
         )
         .map((s) => s.id),
       background: assets
-        .filter(
-          (s) =>
-            (s.moveTo === "background" ||
-              ["defer", "async", "prefetch"].includes(s.priority || "")) &&
-            !s.isSuggested,
+        .filter((s) =>
+          ["defer", "async", "prefetch"].includes(s.priority || ""),
         )
         .map((s) => s.id),
     };
@@ -67,19 +59,13 @@ export function PriorityDock({
   const [timelineAssets, setTimelineAssets] = useState<AssetItem[]>(() => {
     const assignedIds = new Set([
       ...assets
-        .filter(
-          (s) =>
-            (s.moveTo === "highest" ||
-              ["preload", 'fetchpriority="high"'].includes(s.priority || "")) &&
-            !s.isSuggested,
+        .filter((s) =>
+          ["preload", 'fetchpriority="high"'].includes(s.priority || ""),
         )
         .map((s) => s.id),
       ...assets
-        .filter(
-          (s) =>
-            (s.moveTo === "background" ||
-              ["defer", "async", "prefetch"].includes(s.priority || "")) &&
-            !s.isSuggested,
+        .filter((s) =>
+          ["defer", "async", "prefetch"].includes(s.priority || ""),
         )
         .map((s) => s.id),
     ]);
@@ -144,27 +130,22 @@ export function PriorityDock({
     ...assets.map((a) => a.startTime + (a.duration || 0) + 50),
   );
 
+  const minTime =
+    assets.length > 0 ? Math.min(...assets.map((a) => a.startTime)) : 0;
+  const timeSpan = Math.max(500, maxTime - minTime);
+
   const timelineSteps = Array.from({ length: 6 }).map((_, i) =>
-    Math.round((maxTime / 5) * i),
+    Math.round(minTime + (timeSpan / 5) * i),
   );
 
   return (
-    <div className="w-full bg-white rounded-2xl shadow-xl border border-border p-8 text-left">
+    <div className="w-full bg-white rounded-lg shadow-sm border p-6 text-left">
       <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex flex-col gap-8">
           {aiSuggestion && (
-            <div className="p-5 rounded-xl bg-slate-50 border border-slate-200 flex gap-4 items-start">
-              <div className="mt-1 w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
-                <span className="text-slate-600 font-bold text-sm">i</span>
-              </div>
-              <div className="space-y-1">
-                <span className="font-bold text-slate-900 text-xs uppercase tracking-widest">
-                  Performance Insights
-                </span>
-                <p className="text-sm text-slate-700 leading-relaxed">
-                  {aiSuggestion}
-                </p>
-              </div>
+            <div className="p-4 text-sm">
+              <span className="font-semibold">AI Suggestion:</span>{" "}
+              {aiSuggestion}
             </div>
           )}
 
@@ -177,14 +158,38 @@ export function PriorityDock({
 
             <TimelineDropZone>
               <div className="absolute inset-0 flex items-center px-6">
-                <div className="w-full h-0.5 bg-slate-200 relative">
-                  {timelineAssets.map((asset) => (
-                    <TimelineBox
-                      key={asset.id}
-                      script={asset}
-                      maxTime={maxTime}
-                    />
-                  ))}
+                <div className="w-full h-px bg-slate-200/50 relative">
+                  {(() => {
+                    const sorted = [...timelineAssets].sort(
+                      (a, b) => b.volume - a.volume,
+                    );
+                    const lanes: number[] = []; // Stores the 'end time' of the last item in each lane
+
+                    return sorted.map((asset) => {
+                      const start = asset.startTime;
+                      const end = start + (asset.duration || 5); // Use a small buffer if duration is 0
+
+                      let laneIndex = lanes.findIndex(
+                        (laneEnd) => start >= laneEnd,
+                      );
+                      if (laneIndex === -1) {
+                        laneIndex = lanes.length;
+                        lanes.push(end);
+                      } else {
+                        lanes[laneIndex] = end;
+                      }
+
+                      return (
+                        <TimelineBox
+                          key={asset.id}
+                          script={asset}
+                          minTime={minTime}
+                          timeSpan={timeSpan}
+                          lane={laneIndex}
+                        />
+                      );
+                    });
+                  })()}
                 </div>
               </div>
 
@@ -212,14 +217,19 @@ export function PriorityDock({
             ? (() => {
                 const asset = getActiveAssetInfo();
                 if (!asset) return null;
-                const colors = timelineColors[asset.type] || timelineColors.js;
+                const colors = (timelineColors[asset.type] ||
+                  timelineColors.js)!;
+
                 return (
                   <div
-                    className={`px-4 py-3 rounded-xl border-2 shadow-2xl text-[11px] font-bold uppercase tracking-tight ${colors?.bg} ${colors?.border} ${colors?.text}`}
+                    className={`px-4 py-3 rounded-lg border-2 shadow-xl text-xs font-mono ${colors.bg} ${colors.border} ${colors.text}`}
                   >
-                    <div>{asset.name}</div>
-                    <div className="text-[9px] opacity-60 font-mono">
-                      {asset.type} • {asset.volume}KB
+                    <div className="font-semibold">{asset.name}</div>
+                    <div className="text-[10px] opacity-70 font-mono font-bold flex gap-2">
+                      <span className="bg-black/10 px-1 rounded">
+                        {asset.type}
+                      </span>
+                      <span>{asset.volume} KB</span>
                     </div>
                   </div>
                 );

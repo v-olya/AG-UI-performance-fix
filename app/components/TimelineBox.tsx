@@ -21,59 +21,66 @@ export interface AssetItem {
 
 const timelineColors: Record<
   string,
-  { bg: string; border: string; text: string; height: number }
+  { bg: string; border: string; text: string }
 > = {
   js: {
     bg: "bg-orange-100",
     border: "border-orange-200",
     text: "text-orange-700",
-    height: 48,
+  },
+  script: {
+    bg: "bg-orange-100",
+    border: "border-orange-200",
+    text: "text-orange-700",
   },
   css: {
-    bg: "bg-sky-50",
-    border: "border-sky-200",
-    text: "text-sky-900",
-    height: 44,
+    bg: "bg-sky-100",
+    border: "border-sky-300",
+    text: "text-sky-950",
   },
   font: {
     bg: "bg-violet-50",
     border: "border-violet-200",
     text: "text-violet-900",
-    height: 36,
   },
   img: {
     bg: "bg-emerald-50",
     border: "border-emerald-200",
     text: "text-emerald-900",
-    height: 56,
   },
 };
 
 export function TimelineBox({
   script,
-  maxTime = 500,
+  minTime = 0,
+  timeSpan = 500,
+  lane = 0,
 }: {
   script: AssetItem;
-  maxTime?: number;
+  minTime?: number;
+  timeSpan?: number;
+  lane?: number;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: script.id,
     data: script,
   });
 
-  const colors = timelineColors[script.type] || timelineColors.js;
+  const colors = (timelineColors[script.type] || timelineColors.js)!;
 
-  const minHeight = 36;
-  const maxHeight = 160;
-  const normalizedVolume = script.volume / 500;
-  const exponentialFactor = Math.pow(normalizedVolume, 0.4);
-  const dynamicHeight = Math.max(
-    minHeight,
-    Math.min(
-      maxHeight,
-      minHeight + exponentialFactor * (maxHeight - minHeight),
-    ),
-  );
+  const minHeight = 40;
+  const maxHeight = 120; // Lowered to keep things in view
+  const volume = script.volume || 1;
+
+  // Nuanced height scaling
+  let dynamicHeight = minHeight + Math.pow(volume, 0.4) * 12;
+  dynamicHeight = Math.min(dynamicHeight, maxHeight);
+
+  // Z-index: smaller items on top
+  const zIndex = Math.max(10, 300 - Math.floor(volume));
+
+  // Tighter vertical offset to avoid clipping
+  const verticalOffset = (lane % 6) * 10 - 25;
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -83,40 +90,61 @@ export function TimelineBox({
             ref={setNodeRef}
             {...listeners}
             {...attributes}
-            className={`absolute border-2 rounded-xl cursor-grab active:cursor-grabbing shadow-sm transition-all hover:scale-110 hover:z-50 ${colors?.bg} ${colors?.border}`}
+            className={`absolute border-2 rounded-md cursor-grab active:cursor-grabbing shadow-sm transition-all hover:scale-[1.02] hover:z-[500] flex items-center ${colors.bg} ${colors.border}`}
             style={{
-              left: `${Math.min((script.startTime / maxTime) * 100, 98)}%`,
+              left: `${Math.max(0, Math.min(((script.startTime - minTime) / timeSpan) * 100, 98))}%`,
+              // We use a pixel-based minimum width to ensure readability of the label
+              // even for very short durations.
               width:
-                script.duration !== undefined
-                  ? `${Math.max((script.duration / maxTime) * 100, 2)}%`
-                  : `${Math.max(script.volume, 80)}px`,
+                script.duration && (script.duration / timeSpan) * 100 > 6
+                  ? `${(script.duration / timeSpan) * 100}%`
+                  : "64px",
               height: `${dynamicHeight}px`,
               top: "50%",
-              transform: `translateY(-50%)`,
+              transform: `translateY(calc(-50% + ${verticalOffset}px))`,
               opacity: isDragging ? 0.6 : 1,
-              zIndex: isDragging ? 200 : 20,
+              zIndex: isDragging ? 600 : zIndex,
             }}
           >
             <div
-              className={`h-full flex flex-col justify-center px-3 ${colors?.text}`}
+              className={`relative w-full flex flex-col justify-center px-4 py-3 leading-none ${colors.text}`}
             >
-              <div className="font-semibold truncate text-sm">
+              <div
+                className="font-semibold truncate text-right w-full"
+                title={script.name}
+              >
                 {script.name}
               </div>
-              <div className="text-xs opacity-70 flex justify-between">
-                <span>{script.type}</span>
-                <span>{script.volume}KB</span>
+              <div className="text-xs opacity-70 flex justify-between mt-0.5">
+                <span className="truncate">
+                  {script.type === "script" ? "js" : script.type}
+                </span>
+                <span className="shrink-0 font-mono">{volume}KB</span>
               </div>
             </div>
           </div>
         </TooltipTrigger>
         <TooltipContent
           side="top"
-          className="bg-slate-900 text-white border-white/10"
+          className="bg-slate-900/95 backdrop-blur-xl text-white border-white/20 p-3 rounded-xl shadow-2xl z-[9999]"
         >
-          <p className="font-mono text-xs">
-            {script.name} • {script.volume}KB • {script.startTime}ms
-          </p>
+          <div className="font-mono text-[11px] space-y-0.5">
+            <div className="font-bold text-blue-400">{script.name}</div>
+            <div className="flex gap-3 text-slate-300">
+              <span>
+                Size: <b className="text-white">{volume} KB</b>
+              </span>
+              <span>
+                Start:{" "}
+                <b className="text-white">{Math.round(script.startTime)} ms</b>
+              </span>
+            </div>
+            {script.duration && (
+              <div className="text-emerald-400">
+                Duration: <b>{Math.round(script.duration)} ms</b>
+              </div>
+            )}
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

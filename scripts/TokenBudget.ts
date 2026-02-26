@@ -1,6 +1,6 @@
 import type { AuditData, CSSCoverageReport } from "./types/index.js";
 
-const DEFAULT_MAX_CHARS = 4096;
+const DEFAULT_MAX_CHARS = 12000;
 
 interface AIPromptPayload {
   context: {
@@ -24,11 +24,12 @@ interface AIPromptPayload {
  * Progressively prune the AI prompt payload until it fits within the token budget.
  *
  * Pruning order (least valuable first):
- * 1. Drop CSS bloat entries beyond 3
- * 2. Drop asset_priorities entries beyond 7
- * 3. Drop stackHint entries beyond the first function name
- * 4. Drop main_thread_bottlenecks beyond 3
- * 5. Drop asset_priorities beyond 5
+ * 1. Drop sourceSnippet to max 2000 chars if huge
+ * 2. Drop CSS bloat entries beyond 3
+ * 3. Drop asset_priorities entries beyond 7
+ * 4. Drop stackHint entries beyond the first function name
+ * 5. Drop main_thread_bottlenecks beyond 3
+ * 6. Drop asset_priorities beyond 5
  */
 export const prunePayload = (
   payload: AIPromptPayload,
@@ -36,6 +37,15 @@ export const prunePayload = (
 ): AIPromptPayload => {
   const pruned = structuredClone(payload);
   const steps: Array<() => void> = [
+    () => {
+      // Step 1: Clamp source snippets to a slightly smaller size
+      for (const task of pruned.performance.main_thread_bottlenecks) {
+        if (task.sourceSnippet && task.sourceSnippet.length > 2000) {
+          task.sourceSnippet =
+            task.sourceSnippet.substring(0, 2000) + "... [truncated]";
+        }
+      }
+    },
     () => {
       pruned.performance.css_bloat = pruned.performance.css_bloat.slice(0, 3);
     },

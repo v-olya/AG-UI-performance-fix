@@ -196,14 +196,38 @@ export const runFullAudit = async (
 
         if (scriptSource && task.lineNumber !== undefined) {
           const lines = scriptSource.split("\n");
-          const start = Math.max(0, task.lineNumber - 20); // 20 lines before
-          const end = Math.min(lines.length, task.lineNumber + 50); // 50 lines after
-          const snippet = lines.slice(start, end).join("\n");
+          let snippet = "";
+          let adjustedLineNumber = task.lineNumber;
+          let adjustedLineOffset = 0;
+
+          if (lines.length > 5) {
+            // Standard multi-line script
+            const start = Math.max(0, task.lineNumber - 20);
+            const end = Math.min(lines.length, task.lineNumber + 50);
+            snippet = lines.slice(start, end).join("\n");
+            adjustedLineNumber = task.lineNumber - start;
+            adjustedLineOffset = start;
+          } else {
+            // Likely minified or single-line bundle: use character window
+            // Profile line numbers are 0-based, but profile columns are often needed for minified code.
+            // For now, let's just grab a safe window of characters around the likely area if it's one giant line.
+            const approxCharPos = task.lineNumber * 80; // Rough guess if we don't have col
+            const startChar = Math.max(0, approxCharPos - 2000);
+            snippet = scriptSource.substring(startChar, startChar + 5000);
+            adjustedLineNumber = 0; // Relative to start of char slice
+            adjustedLineOffset = 0; // Logic for patching minified bundles needs column info usually
+          }
+
+          // FINAL SAFETY: Never send more than ~5k chars per snippet
+          if (snippet.length > 5000) {
+            snippet = snippet.substring(0, 5000) + "... [truncated]";
+          }
+
           return {
             ...task,
             sourceSnippet: snippet,
-            lineNumber: task.lineNumber - start,
-            lineOffset: start,
+            lineNumber: adjustedLineNumber,
+            lineOffset: adjustedLineOffset,
           };
         }
       } catch (e) {

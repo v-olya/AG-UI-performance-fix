@@ -38,7 +38,6 @@ This project showcases **Agent-Generated UI (AG-UI)**.
 
 - **Backend Agent** (`app/api/copilotkit/[[...slug]]/route.tsx`): A CopilotKit `BuiltInAgent` configured with a strict system prompt and a defined set of tools.
 - **Frontend Tools** (`app/hooks/useToolRenderers.tsx`): Uses `useFrontendTool()` to register tools and their corresponding `render()` functions.
-- **Headless LLM Integration**: The traditional chat interface is omitted. We use `useCopilotChat()` headlessly, sending context programmatically via `appendMessage()`.
 - **Inline Rendering**: When the LLM calls a tool, CopilotKit streams and renders the native React component directly into the interface.
 
 ### Available Tools
@@ -183,6 +182,3 @@ CopilotKit v1.51 swallows LLM errors internally — `appendMessage` never reject
 <img width="2084" height="950" alt="localhost_3000_" src="https://github.com/user-attachments/assets/fb9d5c16-ec25-4e1d-81dd-759ca776bd75" />
 
 <img width="2084" height="4116" alt="localhost_3000_showcase" src="https://github.com/user-attachments/assets/3a94b7f5-d3f1-460e-a552-c9672edb4235" />
-
-
-

@@ -38,6 +38,7 @@ export interface PriorityDockEntry {
   priority: string;
   initiator: string;
   ttfb_ms: number;
+  fetchStart_ms: number;
   duration_ms: number;
   type: ResourceType;
 }
@@ -53,6 +54,8 @@ export interface PerformanceReport {
 export interface NetworkInfo {
   priority: string;
   initiator: string;
+  encodedDataLength?: number;
+  duration_ms?: number;
 }
 
 export interface AuditData {
@@ -75,7 +78,8 @@ export interface ResourceTiming {
   name: string;
   url: string;
   transferSize: number;
+  startTime: number;
   responseStart: number;
-  ttfb: number;
+  responseEnd: number;
   duration: number;
 }

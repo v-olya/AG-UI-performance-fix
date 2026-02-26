@@ -58,19 +58,49 @@ export const runFullAudit = async (
   const client: CDPSession = await page.context().newCDPSession(page);
 
   await client.send("Network.enable");
+  await client.send("Network.clearBrowserCache");
   await client.send("Profiler.enable");
   await client.send("Profiler.start");
 
   const networkMap = new Map<string, NetworkInfo>();
+  const requestFinishedPromises: Promise<void>[] = [];
+
   client.on("Network.requestWillBeSent", (params) => {
-    networkMap.set(params.request.url, {
-      priority: params.request.initialPriority,
-      initiator: params.initiator.type,
-    });
+    const url = params.request.url?.split("#")[0] ?? "";
+    if (url && !networkMap.has(url)) {
+      networkMap.set(url, {
+        priority: params.request.initialPriority,
+        initiator: params.initiator.type,
+      });
+    }
+  });
+
+  page.on("requestfinished", (req) => {
+    requestFinishedPromises.push(
+      (async () => {
+        try {
+          const sizes = await req.sizes();
+          const timing = req.timing();
+          const url = req.url()?.split("#")[0] ?? "";
+          if (!url) return;
+          const info = networkMap.get(url);
+          if (info) {
+            info.encodedDataLength = sizes.responseBodySize;
+            // total duration = responseEnd
+            if (timing.responseEnd > 0) {
+              info.duration_ms = Math.round(timing.responseEnd);
+            }
+          }
+        } catch {
+          // Ignore if request sizes can't be fetched
+        }
+      })(),
+    );
   });
 
   await page.goto(url, { waitUntil: "load" });
   await page.waitForTimeout(LCP_SETTLE_TIMEOUT_MS);
+  await Promise.allSettled(requestFinishedPromises);
 
   const metrics = await page.evaluate(async () => {
     type LayoutShiftEntry = PerformanceEntry & {
@@ -138,13 +168,16 @@ export const runFullAudit = async (
       });
 
     const getResourceTiming = (): ResourceTiming[] => {
-      const resources = performance.getEntriesByType("resource");
+      const resources = performance.getEntriesByType(
+        "resource",
+      ) as PerformanceResourceTiming[];
       return resources.map((r) => ({
         name: r.name,
         url: r.name,
-        transferSize: (r as PerformanceResourceTiming).transferSize,
-        responseStart: (r as PerformanceResourceTiming).responseStart,
-        ttfb: r.startTime,
+        transferSize: r.transferSize || r.encodedBodySize || 0,
+        startTime: r.startTime,
+        responseStart: r.responseStart,
+        responseEnd: r.responseEnd,
         duration: r.duration,
       }));
     };
@@ -280,43 +313,50 @@ export const runFullAudit = async (
   const consolidatedResources = new Map<string, PriorityDockEntry>();
 
   // First, seed with Network events captured via CDP
-  networkMap.forEach((info, url) => {
+  networkMap.forEach((info, urlKey) => {
+    // some elements in metrics.resources might be registered with their exact hash URL, try to accommodate.
+    const url = urlKey;
     const type = inferResourceType(url, url);
     if (!type) return;
 
     consolidatedResources.set(url, {
       basename: extractBasename(url),
       fullUrl: url.length > 500 ? url.substring(0, 500) + "..." : url,
-      transferSizeKb: 0,
+      transferSizeKb: Math.round((info.encodedDataLength || 0) / 1024),
       priority: metrics.loadingHints[url] || info.priority || "Unknown",
       initiator: info.initiator || "Unknown",
       ttfb_ms: 0,
-      duration_ms: 0,
+      fetchStart_ms: 0,
+      duration_ms: info.duration_ms || 0,
       type: type,
     });
   });
 
   // Then, overwrite with precise timing/size data from performance API where available
   metrics.resources.forEach((res) => {
-    const type = inferResourceType(res.url, url);
-    const existing = consolidatedResources.get(res.url);
+    const domUrl = (res.url || "").split("#")[0];
+    if (!domUrl) return;
+    const type = inferResourceType(domUrl, url);
+    const existing = consolidatedResources.get(domUrl);
 
     // Only continue if it's an actionable resource type, OR if we already registered it
     // Wait, if existing hasn't type? It would not be in existing if we rejected it.
     const finalType = type || existing?.type;
     if (!finalType) return;
 
-    const sizeKb = Math.round(res.transferSize / 1024);
-    consolidatedResources.set(res.url, {
-      basename: existing?.basename || extractBasename(res.url),
-      fullUrl:
-        res.url.length > 500 ? res.url.substring(0, 500) + "..." : res.url,
-      transferSizeKb: sizeKb || existing?.transferSizeKb || 0,
+    const domSizeKb = Math.round(res.transferSize / 1024);
+    const finalSizeKb = Math.max(domSizeKb, existing?.transferSizeKb || 0);
+
+    consolidatedResources.set(domUrl, {
+      basename: existing?.basename || extractBasename(domUrl),
+      fullUrl: domUrl.length > 500 ? domUrl.substring(0, 500) + "..." : domUrl,
+      transferSizeKb: finalSizeKb,
       priority:
         metrics.loadingHints[res.url] || existing?.priority || "Unknown",
       initiator: existing?.initiator || "Unknown",
-      ttfb_ms: Math.round(res.ttfb),
-      duration_ms: Math.round(res.duration),
+      ttfb_ms: Math.round(res.startTime), // Using startTime as the reliable anchor
+      fetchStart_ms: Math.round(res.startTime),
+      duration_ms: existing?.duration_ms || Math.round(res.duration),
       type: finalType,
     });
   });

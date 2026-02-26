@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { CopilotKit } from "@copilotkit/react-core";
+import "@copilotkit/react-ui/styles.css";
 import type { CopilotErrorEvent } from "@copilotkit/shared";
 import { AuditCanvas } from "./components/AuditCanvas";
 import { CopilotErrorBanner } from "./components/CopilotErrorBanner";

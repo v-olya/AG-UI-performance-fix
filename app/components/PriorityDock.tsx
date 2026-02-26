@@ -48,14 +48,16 @@ export function PriorityDock({
       highest: assets
         .filter(
           (s) =>
-            (s.moveTo === "highest" || s.priority === "VeryHigh") &&
+            (s.moveTo === "highest" ||
+              ["preload", 'fetchpriority="high"'].includes(s.priority || "")) &&
             !s.isSuggested,
         )
         .map((s) => s.id),
       background: assets
         .filter(
           (s) =>
-            (s.moveTo === "background" || s.priority === "Low") &&
+            (s.moveTo === "background" ||
+              ["defer", "async", "prefetch"].includes(s.priority || "")) &&
             !s.isSuggested,
         )
         .map((s) => s.id),
@@ -67,14 +69,16 @@ export function PriorityDock({
       ...assets
         .filter(
           (s) =>
-            (s.moveTo === "highest" || s.priority === "VeryHigh") &&
+            (s.moveTo === "highest" ||
+              ["preload", 'fetchpriority="high"'].includes(s.priority || "")) &&
             !s.isSuggested,
         )
         .map((s) => s.id),
       ...assets
         .filter(
           (s) =>
-            (s.moveTo === "background" || s.priority === "Low") &&
+            (s.moveTo === "background" ||
+              ["defer", "async", "prefetch"].includes(s.priority || "")) &&
             !s.isSuggested,
         )
         .map((s) => s.id),
@@ -135,6 +139,15 @@ export function PriorityDock({
     return assets.find((s) => s.id === activeId);
   };
 
+  const maxTime = Math.max(
+    500,
+    ...assets.map((a) => a.startTime + (a.duration || 0) + 50),
+  );
+
+  const timelineSteps = Array.from({ length: 6 }).map((_, i) =>
+    Math.round((maxTime / 5) * i),
+  );
+
   return (
     <div className="w-full bg-white rounded-2xl shadow-xl border border-border p-8 text-left">
       <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -166,18 +179,19 @@ export function PriorityDock({
               <div className="absolute inset-0 flex items-center px-6">
                 <div className="w-full h-0.5 bg-slate-200 relative">
                   {timelineAssets.map((asset) => (
-                    <TimelineBox key={asset.id} script={asset} />
+                    <TimelineBox
+                      key={asset.id}
+                      script={asset}
+                      maxTime={maxTime}
+                    />
                   ))}
                 </div>
               </div>
 
               <div className="absolute bottom-4 left-6 right-6 flex justify-between text-[10px] text-slate-400 font-mono font-bold uppercase tracking-tighter">
-                <span>0ms</span>
-                <span>100ms</span>
-                <span>200ms</span>
-                <span>300ms</span>
-                <span>400ms</span>
-                <span>500ms</span>
+                {timelineSteps.map((step) => (
+                  <span key={step}>{step}ms</span>
+                ))}
               </div>
             </TimelineDropZone>
 

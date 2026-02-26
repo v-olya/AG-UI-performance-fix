@@ -10,24 +10,40 @@ import type {
 
 const MAX_LONG_TASKS = 5;
 const MAX_PRIORITY_DOCK_ENTRIES = 10;
-const MIN_RESOURCE_SIZE_KB = 0.5;
 const LCP_SETTLE_TIMEOUT_MS = 2000;
 
-const inferResourceType = (url: string): ResourceType => {
-  const ext = url.split("?")[0]?.split(".").pop()?.toLowerCase() ?? "";
+const inferResourceType = (
+  url: string,
+  targetUrl: string,
+): ResourceType | null => {
+  const urlObj = new URL(url);
+  const targetUrlObj = new URL(targetUrl);
+  // Match exact base URL to target URL representing the document
+  if (
+    urlObj.origin === targetUrlObj.origin &&
+    urlObj.pathname === targetUrlObj.pathname
+  )
+    return null;
+  const ext = urlObj.pathname.split(".").pop()?.toLowerCase() ?? "";
   if (["js", "mjs", "cjs"].includes(ext)) return "script";
   if (["css"].includes(ext)) return "css";
   if (["woff", "woff2", "ttf", "otf", "eot"].includes(ext)) return "font";
   if (["png", "jpg", "jpeg", "gif", "webp", "avif", "svg", "ico"].includes(ext))
     return "img";
-  return "other";
+  return null;
 };
 
 const extractBasename = (url: string): string => {
   try {
-    return new URL(url).pathname.split("/").pop() || url;
+    const urlObj = new URL(url);
+    let name = urlObj.pathname.split("/").pop() || urlObj.hostname;
+    // Keep some query for fonts or dynamic scripts if short
+    if (urlObj.search && urlObj.search.length < 20) {
+      name += urlObj.search;
+    }
+    return name.substring(0, 50); // Cap basename length
   } catch {
-    return url.split("/").pop() || url;
+    return url.split("/").pop()?.substring(0, 50) || url.substring(0, 50);
   }
 };
 
@@ -128,8 +144,43 @@ export const runFullAudit = async (
         url: r.name,
         transferSize: (r as PerformanceResourceTiming).transferSize,
         responseStart: (r as PerformanceResourceTiming).responseStart,
-        ttfb: (r as PerformanceResourceTiming).responseStart,
+        ttfb: r.startTime,
+        duration: r.duration,
       }));
+    };
+
+    const getLoadingHints = (): Record<string, string> => {
+      const hints = new Map<string, string>();
+      document.querySelectorAll("script[src]").forEach((s) => {
+        if (s.hasAttribute("async"))
+          hints.set(s.getAttribute("src") || "", "async");
+        else if (s.hasAttribute("defer"))
+          hints.set(s.getAttribute("src") || "", "defer");
+      });
+      document.querySelectorAll('link[rel="preload"]').forEach((l) => {
+        hints.set(l.getAttribute("href") || "", "preload");
+      });
+      document.querySelectorAll('link[rel="prefetch"]').forEach((l) => {
+        hints.set(l.getAttribute("href") || "", "prefetch");
+      });
+      document.querySelectorAll('[fetchpriority="high"]').forEach((el) => {
+        hints.set(
+          el.getAttribute("src") || el.getAttribute("href") || "",
+          'fetchpriority="high"',
+        );
+      });
+
+      const root = new URL(document.baseURI);
+      const output: Record<string, string> = {};
+      hints.forEach((hint, url) => {
+        if (!url) return;
+        try {
+          output[new URL(url, root).href] = hint;
+        } catch {
+          // ignore invalid URLs
+        }
+      });
+      return output;
     };
 
     const [lcp, cls, tbt, resources] = await Promise.all([
@@ -138,6 +189,8 @@ export const runFullAudit = async (
       getTBT(),
       getResourceTiming(),
     ]);
+
+    const loadingHints = getLoadingHints();
 
     const fcp =
       performance.getEntriesByName("first-contentful-paint")[0]?.startTime || 0;
@@ -149,6 +202,7 @@ export const runFullAudit = async (
       fcp,
       tbt,
       resources,
+      loadingHints,
     };
   });
 
@@ -196,38 +250,23 @@ export const runFullAudit = async (
 
         if (scriptSource && task.lineNumber !== undefined) {
           const lines = scriptSource.split("\n");
-          let snippet = "";
-          let adjustedLineNumber = task.lineNumber;
-          let adjustedLineOffset = 0;
 
-          if (lines.length > 5) {
-            // Standard multi-line script
-            const start = Math.max(0, task.lineNumber - 20);
-            const end = Math.min(lines.length, task.lineNumber + 50);
-            snippet = lines.slice(start, end).join("\n");
-            adjustedLineNumber = task.lineNumber - start;
-            adjustedLineOffset = start;
-          } else {
-            // Likely minified or single-line bundle: use character window
-            // Profile line numbers are 0-based, but profile columns are often needed for minified code.
-            // For now, let's just grab a safe window of characters around the likely area if it's one giant line.
-            const approxCharPos = task.lineNumber * 80; // Rough guess if we don't have col
-            const startChar = Math.max(0, approxCharPos - 2000);
-            snippet = scriptSource.substring(startChar, startChar + 5000);
-            adjustedLineNumber = 0; // Relative to start of char slice
-            adjustedLineOffset = 0; // Logic for patching minified bundles needs column info usually
+          // CRITICAL: We DO NOT process minified/single-line scripts for execution splitting.
+          const hasLongLine = lines.some((l) => l.length > 250);
+          if (lines.length <= 5 || hasLongLine) {
+            return task;
           }
 
-          // FINAL SAFETY: Never send more than ~5k chars per snippet
-          if (snippet.length > 5000) {
-            snippet = snippet.substring(0, 5000) + "... [truncated]";
-          }
+          // Standard multi-line script extraction
+          const start = Math.max(0, task.lineNumber - 20);
+          const end = Math.min(lines.length, task.lineNumber + 50);
+          const snippet = lines.slice(start, end).join("\n");
 
           return {
             ...task,
             sourceSnippet: snippet,
-            lineNumber: adjustedLineNumber,
-            lineOffset: adjustedLineOffset,
+            lineNumber: task.lineNumber - start,
+            lineOffset: start,
           };
         }
       } catch (e) {
@@ -237,20 +276,54 @@ export const runFullAudit = async (
     }),
   );
 
-  const priorityDock: PriorityDockEntry[] = metrics.resources
-    .map((res) => {
-      const sizeKb = Math.round(res.transferSize / 1024);
-      return {
-        basename: extractBasename(res.url),
-        fullUrl: res.url,
-        transferSizeKb: sizeKb,
-        priority: networkMap.get(res.url)?.priority || "Unknown",
-        initiator: networkMap.get(res.url)?.initiator || "Unknown",
-        ttfb_ms: Math.round(res.ttfb),
-        type: inferResourceType(res.url),
-      };
-    })
-    .filter((entry) => entry.transferSizeKb >= MIN_RESOURCE_SIZE_KB)
+  // Merge CDP network events with performance entries to catch resources missing from the performance buffer
+  const consolidatedResources = new Map<string, PriorityDockEntry>();
+
+  // First, seed with Network events captured via CDP
+  networkMap.forEach((info, url) => {
+    const type = inferResourceType(url, url);
+    if (!type) return;
+
+    consolidatedResources.set(url, {
+      basename: extractBasename(url),
+      fullUrl: url.length > 500 ? url.substring(0, 500) + "..." : url,
+      transferSizeKb: 0,
+      priority: metrics.loadingHints[url] || info.priority || "Unknown",
+      initiator: info.initiator || "Unknown",
+      ttfb_ms: 0,
+      duration_ms: 0,
+      type: type,
+    });
+  });
+
+  // Then, overwrite with precise timing/size data from performance API where available
+  metrics.resources.forEach((res) => {
+    const type = inferResourceType(res.url, url);
+    const existing = consolidatedResources.get(res.url);
+
+    // Only continue if it's an actionable resource type, OR if we already registered it
+    // Wait, if existing hasn't type? It would not be in existing if we rejected it.
+    const finalType = type || existing?.type;
+    if (!finalType) return;
+
+    const sizeKb = Math.round(res.transferSize / 1024);
+    consolidatedResources.set(res.url, {
+      basename: existing?.basename || extractBasename(res.url),
+      fullUrl:
+        res.url.length > 500 ? res.url.substring(0, 500) + "..." : res.url,
+      transferSizeKb: sizeKb || existing?.transferSizeKb || 0,
+      priority:
+        metrics.loadingHints[res.url] || existing?.priority || "Unknown",
+      initiator: existing?.initiator || "Unknown",
+      ttfb_ms: Math.round(res.ttfb),
+      duration_ms: Math.round(res.duration),
+      type: finalType,
+    });
+  });
+
+  const priorityDock: PriorityDockEntry[] = Array.from(
+    consolidatedResources.values(),
+  )
     .sort((a, b) => b.transferSizeKb - a.transferSizeKb)
     .slice(0, MAX_PRIORITY_DOCK_ENTRIES);
 

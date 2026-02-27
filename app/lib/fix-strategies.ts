@@ -2,7 +2,6 @@ export const FIX_STRATEGIES = {
   // Image / CLS strategies
   SET_DIMENSIONS: "SET_DIMENSIONS",
   USE_ASPECT_RATIO: "USE_ASPECT_RATIO",
-  ADD_SKELETON: "ADD_SKELETON",
 
   // Script / Blocking strategies
   DEFER_SCRIPT: "DEFER_SCRIPT",

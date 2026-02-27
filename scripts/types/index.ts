@@ -7,8 +7,8 @@ export type SectionType =
 export interface ShiftAttribution {
   selector: string;
   score: number;
-  prevRect: DOMRectReadOnly;
-  currRect: DOMRectReadOnly;
+  width: number;
+  height: number;
 }
 
 export interface Vitals {

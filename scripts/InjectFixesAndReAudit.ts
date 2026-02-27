@@ -1,4 +1,6 @@
 import { chromium, Browser, BrowserContext, Page, Route } from "playwright";
+import * as prettier from "prettier";
+import { minify } from "terser";
 
 export interface AIProposedFix {
   type: "head_injection" | "css_override" | "js_replace";
@@ -93,20 +95,44 @@ export const generateScorecard = async (
     );
     if (replaceFix) {
       const response = await route.fetch();
-      let body = await response.text();
+      const body = await response.text();
 
-      // Check if it's a line-based patch formatted as "/* Line X */ CODE"
+      const isMinified =
+        body.split("\n").some((l) => l.length > 500) ||
+        (body.length > 1000 && body.split("\n").length < 10);
+
+      let workingBody = body;
+      if (isMinified) {
+        try {
+          workingBody = await prettier.format(body, {
+            parser: "babel",
+            semi: true,
+            singleQuote: true,
+          });
+        } catch (e) {
+          console.warn("Beautification failed, patching original source.");
+        }
+      }
+
+      // Apply fix (Patch or Replace)
       const patchMatch = replaceFix.content.match(/\/\* Line (\d+) \*\/ (.*)/);
       if (patchMatch) {
         const lineNum = parseInt(patchMatch[1]!, 10);
         const patchCode = patchMatch[2]!;
-        const lines = body.split("\n");
-        // Inject the code at the target line
+        const lines = workingBody.split("\n");
         lines.splice(lineNum, 0, patchCode);
-        body = lines.join("\n");
+        workingBody = lines.join("\n");
       } else {
-        // Fallback: Replace total content if not a line-based patch
-        body = replaceFix.content;
+        workingBody = replaceFix.content;
+      }
+
+      if (isMinified) {
+        try {
+          const minified = await minify(workingBody);
+          workingBody = minified.code || workingBody;
+        } catch (e) {
+          console.warn("Re-minification failed.");
+        }
       }
 
       return route.fulfill({
@@ -114,7 +140,7 @@ export const generateScorecard = async (
         contentType: reqUrl.endsWith(".css")
           ? "text/css"
           : "application/javascript",
-        body,
+        body: workingBody,
       });
     }
 

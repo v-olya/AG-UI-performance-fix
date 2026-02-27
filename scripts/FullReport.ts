@@ -1,4 +1,5 @@
 import { BrowserContext, Page, CDPSession } from "playwright";
+import * as prettier from "prettier";
 import type {
   PerformanceReport,
   NetworkInfo,
@@ -256,6 +257,7 @@ export const runFullAudit = async (
       scriptUrl: extractBasename(node.callFrame.url),
       fullScriptUrl: node.callFrame.url,
       lineNumber: node.callFrame.lineNumber,
+      columnNumber: node.callFrame.columnNumber,
       isThirdParty: !node.callFrame.url.includes(targetHost),
       stackHint: [
         node.callFrame.functionName || "(anonymous)",
@@ -284,22 +286,70 @@ export const runFullAudit = async (
         if (scriptSource && task.lineNumber !== undefined) {
           const lines = scriptSource.split("\n");
 
-          // CRITICAL: We DO NOT process minified/single-line scripts for execution splitting.
-          const hasLongLine = lines.some((l) => l.length > 250);
-          if (lines.length <= 5 || hasLongLine) {
-            return task;
+          const avgLineLength = scriptSource.length / lines.length;
+          const hasVeryLongLine = lines.some((l) => l.length > 500);
+          const isMinified =
+            (scriptSource.length > 1000 && lines.length < 10) ||
+            avgLineLength > 200 ||
+            hasVeryLongLine;
+
+          let processedSource = scriptSource;
+          let targetLine = task.lineNumber;
+
+          if (isMinified) {
+            try {
+              // Convert 0-indexed line/column to absolute character index in the minified string
+              let charIndex = 0;
+              for (let i = 0; i < task.lineNumber && i < lines.length; i++) {
+                charIndex += (lines[i] ? lines[i]!.length : 0) + 1; // +1 for the newline character
+              }
+              charIndex += task.columnNumber || 0;
+
+              // Use Prettier's AST parser to perfectly translate the cursor position into the beautified code
+              const { formatted, cursorOffset } =
+                await prettier.formatWithCursor(scriptSource, {
+                  cursorOffset: charIndex,
+                  parser: "babel",
+                  semi: true,
+                  singleQuote: true,
+                });
+
+              processedSource = formatted;
+
+              // Count newlines before the mapped cursor to find the new 0-indexed target line
+              targetLine =
+                formatted.substring(0, cursorOffset).split("\n").length - 1;
+            } catch (e) {
+              console.warn(
+                "Prettier failed to beautify and map cursor, skipping. Error:",
+                e,
+              );
+              return { ...task, skipReason: "minified_no_context" as const };
+            }
           }
 
-          // Standard multi-line script extraction
-          const start = Math.max(0, task.lineNumber - 20);
-          const end = Math.min(lines.length, task.lineNumber + 50);
-          const snippet = lines.slice(start, end).join("\n");
+          const processedLines = processedSource.split("\n");
+          let start = Math.max(0, targetLine - 30);
+          let end = Math.min(processedLines.length, targetLine + 70);
+
+          // Prefix the snippet with exact absolute line numbers so the AI is never confused
+          const snippetLines = processedLines
+            .slice(start, end)
+            .map((line, index) => {
+              return `${start + index + 1} | ${line}`;
+            });
+          const snippet = snippetLines.join("\n");
+
+          // "All or Nothing": Set skipreason if the snippet is still impossibly huge
+          if (snippet.length > 8000) {
+            return { ...task, skipReason: "too_large" as const };
+          }
 
           return {
             ...task,
             sourceSnippet: snippet,
-            lineNumber: task.lineNumber - start,
-            lineOffset: start,
+            lineNumber: targetLine - start, // Relative 0-based target line
+            lineOffset: start, // Absolute 0-based start index
           };
         }
       } catch (e) {

@@ -1,4 +1,8 @@
-import type { AuditData, CSSCoverageReport } from "./types/index.js";
+import type {
+  AuditData,
+  CSSCoverageReport,
+  ShiftAttribution,
+} from "./types/index.js";
 
 const DEFAULT_MAX_CHARS = 12000;
 
@@ -15,7 +19,7 @@ interface AIPromptPayload {
     asset_priorities: AuditData["priorityDock"];
   };
   selectors_to_fix: {
-    layout_shifts: string[];
+    layout_shifts: ShiftAttribution[];
     lcp_element: string;
   };
 }
@@ -38,11 +42,10 @@ export const prunePayload = (
   const pruned = structuredClone(payload);
   const steps: Array<() => void> = [
     () => {
-      // Step 1: Clamp source snippets to a slightly smaller size
+      // Step 1: Drop source snippets that are still too large
       for (const task of pruned.performance.main_thread_bottlenecks) {
-        if (task.sourceSnippet && task.sourceSnippet.length > 2000) {
-          task.sourceSnippet =
-            task.sourceSnippet.substring(0, 2000) + "... [truncated]";
+        if (task.sourceSnippet && task.sourceSnippet.length > 3000) {
+          delete task.sourceSnippet;
         }
       }
     },

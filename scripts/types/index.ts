@@ -27,6 +27,8 @@ export interface LongTask {
   sourceSnippet?: string;
   lineNumber?: number;
   lineOffset?: number; // Starting line number of the snippet in original file
+  columnNumber?: number;
+  skipReason?: "too_large" | "incomplete_context" | "minified_no_context";
 }
 
 export type ResourceType = "script" | "css" | "font" | "img";

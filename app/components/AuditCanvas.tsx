@@ -266,8 +266,10 @@ export function AuditCanvas() {
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com"
                 className="pl-9"
-                disabled={phase === "auditing" || phase === "reauditing"}
-                onKeyDown={(e) => e.key === "Enter" && runAudit()}
+                disabled={
+                  phase === "auditing" || phase === "reauditing" || isLoading
+                }
+                onKeyDown={(e) => e.key === "Enter" && !isLoading && runAudit()}
                 aria-label="URL to audit"
               />
             </div>
@@ -275,7 +277,10 @@ export function AuditCanvas() {
               id="audit-button"
               onClick={runAudit}
               disabled={
-                !url.trim() || phase === "auditing" || phase === "reauditing"
+                !url.trim() ||
+                phase === "auditing" ||
+                phase === "reauditing" ||
+                isLoading
               }
               className="min-w-24"
             >
@@ -293,7 +298,7 @@ export function AuditCanvas() {
                 id="recalculate-button"
                 onClick={runRecalculate}
                 variant="outline"
-                disabled={userChoices.length === 0}
+                disabled={userChoices.length === 0 || isLoading}
                 className="border-border text-foreground hover:bg-accent"
               >
                 Recalculate

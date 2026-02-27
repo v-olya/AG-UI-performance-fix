@@ -25,6 +25,10 @@ Instead of just giving text advice, this AI tool analyzes your page's metrics, g
 
 1. **Audit**: Enter a target URL. A headless Playwright instance loads the page and extracts raw performance metrics (LCP, FCP, CLS, long tasks, resource order).
 
+   > **Note:** We are aware that a custom Playwright audit is not as stable as a standard Lighthouse run. However, we opted for this approach because we prefer not to wait a full minute just to get the initial audit, and crucially, we want the ability to quickly re-calculate metrics later after applying fixes.
+   >
+   > **TODO:** To mitigate run-to-run variance, we plan to implement strict CPU and Network throttling via Chrome DevTools Protocol (CDP) inside Playwright, simulating the stable baseline of Lighthouse while retaining optimal speed.
+
 2. **Analysis**: Metrics are preprocessed and sent for analysis using **Ollama** via CopilotKit. The LLM is strictly prompted to respond only with tool calls—no chat, no lengthy text blocks.
 3. **Agent-Generated UI**: The LLM analyzes the bottlenecks and triggers specific frontend tools. Each tool renders a dedicated React component inline (e.g., a drag-and-drop dock for resource priority, or a code editor for yield points).
 4. **Resolution**: The user interacts with the generated components to selectively apply the fixes proposed by the AI.

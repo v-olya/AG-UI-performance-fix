@@ -22,7 +22,7 @@ export const generateAIPromptPayload = async (
       asset_priorities: auditData.priorityDock,
     },
     selectors_to_fix: {
-      layout_shifts: auditData.shiftAttribution?.map((s) => s.selector) || [],
+      layout_shifts: auditData.shiftAttribution || [],
       lcp_element: auditData.lcpElement,
     },
   };

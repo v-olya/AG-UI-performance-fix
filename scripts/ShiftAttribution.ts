@@ -1,56 +1,103 @@
-import { Page } from 'playwright';
-import type { ShiftAttribution } from './types/index.js';
+import { Page } from "playwright";
+import type { ShiftAttribution } from "./types/index.js";
 
-export const extractLayoutShiftAttribution = async (page: Page): Promise<ShiftAttribution[]> => {
+export const extractLayoutShiftAttribution = async (
+  page: Page,
+): Promise<ShiftAttribution[]> => {
   return await page.evaluate(() => {
     return new Promise((resolve) => {
       // See scripts/types/performance.ts for type definitions
       type LayoutShift = PerformanceEntry & {
         hadRecentInput: boolean;
-        sources: Array<{ node: Element; previousRect: DOMRectReadOnly; currentRect: DOMRectReadOnly }>;
+        sources: Array<{
+          node: Element;
+          previousRect: DOMRectReadOnly;
+          currentRect: DOMRectReadOnly;
+        }>;
         value: number;
       };
 
-      const shifts: ShiftAttribution[] = [];
+      const shiftMap = new Map<string, number>();
+      const rectMap = new Map<
+        string,
+        { prev: DOMRectReadOnly; curr: DOMRectReadOnly }
+      >();
 
       const observer = new PerformanceObserver((list) => {
-        const entries = list.getEntries();
-        for (const entry of entries) {
-          // Type guard: check for layout shift properties
-          if (
-            entry &&
-            "hadRecentInput" in entry &&
-            !entry.hadRecentInput &&
-            "sources" in entry &&
-            "value" in entry
-          ) {
-            const layoutShiftEntry = entry as LayoutShift;
-            const sources = layoutShiftEntry.sources;
-            if (!sources) continue;
-            for (const source of sources) {
-              if (!source) continue;
-              const el = source.node;
-              const selector = el 
-                ? (el.id ? `#${el.id}` : `${el.tagName.toLowerCase()}${el.className ? '.' + el.className.split(' ').join('.') : ''}`)
-                : 'unknown-element';
+        for (const entry of list.getEntries()) {
+          const shift = entry as LayoutShift;
+          if (shift.hadRecentInput || !shift.sources) continue;
 
-              shifts.push({
-                selector,
-                score: layoutShiftEntry.value,
-                prevRect: source.previousRect,
-                currRect: source.currentRect
-              });
+          // For each shift, find the most "specific" source (deepest node)
+          let bestSource: {
+            node: Element;
+            prevRect: DOMRectReadOnly;
+            currentRect: DOMRectReadOnly;
+          } | null = null;
+          let maxDepth = -1;
+          let maxArea = -1;
+
+          const getDepth = (el: Element) => {
+            let depth = 0;
+            let current: Element | null = el;
+            while (current?.parentElement) {
+              depth++;
+              current = current.parentElement;
             }
+            return depth;
+          };
+
+          for (const source of shift.sources) {
+            if (!source.node || source.node.nodeType !== 1) continue;
+            const el = source.node as Element;
+            if (el.tagName === "HTML" || el.tagName === "BODY") continue;
+
+            const depth = getDepth(el);
+            const area = source.currentRect.width * source.currentRect.height;
+
+            // Primary criteria: Depth (identify the most specific "leaf" node shifting)
+            // Secondary criteria: Largest Area among deepest nodes (highest visual impact)
+            if (depth > maxDepth || (depth === maxDepth && area > maxArea)) {
+              maxDepth = depth;
+              maxArea = area;
+              bestSource = {
+                node: el,
+                prevRect: source.previousRect,
+                currentRect: source.currentRect,
+              };
+            }
+          }
+
+          if (bestSource) {
+            const el = bestSource.node as Element;
+            const selector = el.id
+              ? `#${el.id}`
+              : `${el.tagName.toLowerCase()}${el.className ? "." + String(el.className).split(" ").filter(Boolean).join(".") : ""}`;
+
+            shiftMap.set(selector, (shiftMap.get(selector) || 0) + shift.value);
+            rectMap.set(selector, {
+              prev: bestSource.prevRect,
+              curr: bestSource.currentRect,
+            });
           }
         }
       });
 
-      observer.observe({ type: 'layout-shift', buffered: true });
+      observer.observe({ type: "layout-shift", buffered: true });
 
       setTimeout(() => {
         observer.disconnect();
-        resolve(shifts.sort((a, b) => b.score - a.score).slice(0, 5));
-      }, 500);
+        const results: ShiftAttribution[] = Array.from(shiftMap.entries())
+          .map(([selector, score]) => ({
+            selector,
+            score,
+            prevRect: rectMap.get(selector)!.prev,
+            currRect: rectMap.get(selector)!.curr,
+          }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 8); // Increased limit as AI can handle more context now
+        resolve(results);
+      }, 1500); // Increased from 600ms for better reliability
     });
   });
 };

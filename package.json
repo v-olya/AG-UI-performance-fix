@@ -52,7 +52,9 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "knip": "^5.83.1",
     "postcss": "^8.4.49",
+    "prettier": "^3.8.1",
     "tailwindcss": "^4.1.13",
+    "terser": "^5.46.0",
     "typescript": "5.9.2"
   }
 }

@@ -392,6 +392,14 @@ export function AuditCanvas() {
                 placeholder: "AI Suggestions will appear here",
               }}
             />
+            {isLoading && phase === "interactive" && (
+              <div className="flex items-center justify-center py-6 text-muted-foreground animate-pulse">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                <span className="text-sm font-medium">
+                  AI is generating fixes...
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
